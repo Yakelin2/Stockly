@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import FormularioProducto from "../components/productos/FormularioProducto";
+import EscanerCamara from "../components/productos/EscanerCamara";
 import TablaProductos from "../components/productos/TablaProductos";
 import TarjetaResumen from "../components/productos/TarjetaResumen";
 
@@ -53,11 +54,19 @@ function Productos() {
   const [mostrarEscaner, setMostrarEscaner] =
     useState(false);
 
+  const [mostrarCamara, setMostrarCamara] =
+  useState(false);
+
   const [codigoEscaneado, setCodigoEscaneado] =
     useState("");
 
   const [errorEscaner, setErrorEscaner] =
     useState("");
+
+    const [
+  codigoDesdeEscaner,
+  setCodigoDesdeEscaner,
+  ] = useState(false);
 
   useEffect(() => {
     cargarProductos();
@@ -131,6 +140,8 @@ function Productos() {
   function abrirFormularioNuevo() {
     setProductoEditandoId(null);
 
+    setCodigoDesdeEscaner(false);
+
     setFormulario({
       ...productoVacio,
     });
@@ -141,6 +152,8 @@ function Productos() {
 
   function abrirFormularioEdicion(producto) {
     setProductoEditandoId(producto.id);
+
+    setCodigoDesdeEscaner(false);
 
     setFormulario({
       nombre: producto.nombre,
@@ -164,6 +177,8 @@ function Productos() {
 
     setProductoEditandoId(null);
 
+    setCodigoDesdeEscaner(false);
+
     setFormulario({
       ...productoVacio,
     });
@@ -182,6 +197,19 @@ function Productos() {
     setErrorEscaner("");
     setMostrarEscaner(false);
   }
+
+  function abrirCamara() {
+  setMostrarCamara(true);
+ }
+
+function cerrarCamara() {
+  setMostrarCamara(false);
+ }
+
+function detectarCodigoDesdeCamara(codigo) {
+  setCodigoEscaneado(codigo);
+  setMostrarCamara(false);
+ }
 
   function buscarProductoPorCodigo(evento) {
   evento.preventDefault();
@@ -222,6 +250,8 @@ function Productos() {
 
   setProductoEditandoId(null);
 
+  setCodigoDesdeEscaner(true);
+
   setFormulario({
     ...productoVacio,
     codigo: codigoLimpio,
@@ -233,7 +263,7 @@ function Productos() {
   setError("");
   setMostrarFormulario(true);
  }
- 
+
   async function guardarProducto(
     evento,
     archivoImagen
@@ -430,6 +460,7 @@ function Productos() {
         formulario={formulario}
         productoEditandoId={productoEditandoId}
         guardando={guardando}
+        codigoDesdeEscaner={codigoDesdeEscaner}
         onChange={manejarCambio}
         onSubmit={guardarProducto}
         onClose={cerrarFormulario}
@@ -468,6 +499,15 @@ function Productos() {
                   <Barcode size={34} />
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={abrirCamara}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 font-semibold text-blue-700 transition hover:bg-blue-100"
+              >
+                <Barcode size={20} />
+                Escanear con cámara
+              </button>
 
               <label className="block space-y-2">
                 <span className="text-sm font-semibold text-slate-700">
@@ -537,6 +577,12 @@ function Productos() {
           </div>
         </div>
       )}
+
+      <EscanerCamara
+      abierto={mostrarCamara}
+      onCerrar={cerrarCamara}
+      onDetectar={detectarCodigoDesdeCamara}
+    />      
     </section>
   );
 }

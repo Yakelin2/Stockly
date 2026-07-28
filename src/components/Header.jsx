@@ -1,12 +1,18 @@
-import { Bell, Menu, Search, UserRound } from "lucide-react";
+import {
+  Bell,
+  Menu,
+  Search,
+  UserRound,
+} from "lucide-react";
 
-function Header() {
+function Header({ onAbrirMenu }) {
   return (
     <header className="flex h-20 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6">
       <div className="flex items-center gap-3">
         <button
           type="button"
-          className="rounded-lg border border-slate-200 p-2 text-slate-600 lg:hidden"
+          onClick={onAbrirMenu}
+          className="rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 lg:hidden"
           aria-label="Abrir menú"
         >
           <Menu size={22} />
@@ -16,6 +22,7 @@ function Header() {
           <h2 className="text-lg font-bold text-slate-900">
             Panel de control
           </h2>
+
           <p className="hidden text-sm text-slate-500 sm:block">
             Resumen general de tu negocio
           </p>
@@ -24,7 +31,10 @@ function Header() {
 
       <div className="flex items-center gap-2 sm:gap-3">
         <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 md:flex">
-          <Search size={18} className="text-slate-400" />
+          <Search
+            size={18}
+            className="text-slate-400"
+          />
 
           <input
             type="search"
