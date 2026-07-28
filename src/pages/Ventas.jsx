@@ -14,6 +14,7 @@ import {
 
 import EscanerCamara from "../components/productos/EscanerCamara";
 import { obtenerProductos } from "../services/productosService";
+import { registrarVenta } from "../services/ventasService.js";
 
 function Ventas() {
   const [productos, setProductos] = useState([]);
@@ -24,6 +25,15 @@ function Ventas() {
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [mostrarCamara, setMostrarCamara] =
+    useState(false);
+
+  const [metodoPago, setMetodoPago] =
+    useState("efectivo");
+
+  const [montoRecibido, setMontoRecibido] =
+    useState("");
+
+  const [procesandoVenta, setProcesandoVenta] =
     useState(false);
 
   useEffect(() => {
@@ -139,6 +149,12 @@ function Ventas() {
         Number(producto.cantidad),
     0
   );
+
+  const cambio =
+    metodoPago === "efectivo" &&
+    Number(montoRecibido) >= total
+      ? Number(montoRecibido) - total
+      : 0;
 
   function limpiarMensajes() {
     setError("");
@@ -335,7 +351,7 @@ function Ventas() {
     setBusqueda("");
   }
 
-  function cobrarVenta() {
+  async function cobrarVenta() {
     limpiarMensajes();
 
     if (carrito.length === 0) {
@@ -345,12 +361,68 @@ function Ventas() {
       return;
     }
 
-    window.alert(
-      `Venta por ${total.toLocaleString("es-MX", {
-        style: "currency",
-        currency: "MXN",
-      })}. Aún falta conectarla con Supabase.`
+    if (
+      metodoPago === "efectivo" &&
+      (!montoRecibido ||
+        Number(montoRecibido) < total)
+    ) {
+      setError(
+        "El monto recibido debe ser igual o mayor al total."
+      );
+      return;
+    }
+
+    const confirmar = window.confirm(
+      `¿Confirmar venta por ${total.toLocaleString(
+        "es-MX",
+        {
+          style: "currency",
+          currency: "MXN",
+        }
+      )}?`
     );
+
+    if (!confirmar) {
+      return;
+    }
+
+    try {
+      setProcesandoVenta(true);
+
+      const ventaId = await registrarVenta({
+        carrito,
+        metodoPago,
+        montoRecibido,
+      });
+
+      setCarrito([]);
+      setBusqueda("");
+      setMontoRecibido("");
+
+      await cargarProductos();
+
+      setMensaje(
+        `Venta registrada correctamente. Folio interno: ${ventaId}`
+      );
+    } catch (errorDeVenta) {
+      console.error(
+        "Error al registrar la venta:",
+        errorDeVenta
+      );
+
+      setError(
+        `No se pudo registrar la venta: ${errorDeVenta.message}`
+      );
+
+      /*
+       * Recargamos el inventario porque el servidor es la
+       * fuente real de stock. Así evitamos que la pantalla
+       * conserve cantidades desactualizadas.
+       */
+      await cargarProductos();
+    } finally {
+      setProcesandoVenta(false);
+    }
   }
 
   return (
@@ -751,6 +823,80 @@ function Ventas() {
           </div>
 
           <div className="space-y-4 border-t border-slate-200 p-5">
+            <div className="space-y-3">
+              <label className="block space-y-1.5">
+                <span className="text-sm font-semibold text-slate-700">
+                  Método de pago
+                </span>
+
+                <select
+                  value={metodoPago}
+                  onChange={(evento) => {
+                    setMetodoPago(evento.target.value);
+                    setMontoRecibido("");
+                    limpiarMensajes();
+                  }}
+                  disabled={procesandoVenta}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
+                >
+                  <option value="efectivo">
+                    Efectivo
+                  </option>
+                  <option value="tarjeta">
+                    Tarjeta
+                  </option>
+                  <option value="transferencia">
+                    Transferencia
+                  </option>
+                  <option value="otro">
+                    Otro
+                  </option>
+                </select>
+              </label>
+
+              {metodoPago === "efectivo" && (
+                <label className="block space-y-1.5">
+                  <span className="text-sm font-semibold text-slate-700">
+                    Monto recibido
+                  </span>
+
+                  <input
+                    type="number"
+                    value={montoRecibido}
+                    onChange={(evento) => {
+                      setMontoRecibido(
+                        evento.target.value
+                      );
+                      limpiarMensajes();
+                    }}
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    disabled={procesandoVenta}
+                    placeholder="0.00"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
+                  />
+                </label>
+              )}
+
+              {metodoPago === "efectivo" &&
+                Number(montoRecibido) >= total &&
+                total > 0 && (
+                  <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2.5 text-sm">
+                    <span className="font-medium text-emerald-700">
+                      Cambio
+                    </span>
+
+                    <span className="font-bold text-emerald-800">
+                      {cambio.toLocaleString("es-MX", {
+                        style: "currency",
+                        currency: "MXN",
+                      })}
+                    </span>
+                  </div>
+                )}
+            </div>
+
             <div className="flex items-center justify-between">
               <span className="text-slate-500">
                 Total
@@ -768,7 +914,10 @@ function Ventas() {
               <button
                 type="button"
                 onClick={cancelarVenta}
-                disabled={carrito.length === 0}
+                disabled={
+                  carrito.length === 0 ||
+                  procesandoVenta
+                }
                 className="rounded-xl border border-slate-300 px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancelar venta
@@ -777,10 +926,27 @@ function Ventas() {
               <button
                 type="button"
                 onClick={cobrarVenta}
-                disabled={carrito.length === 0}
+                disabled={
+                  carrito.length === 0 ||
+                  procesandoVenta ||
+                  (metodoPago === "efectivo" &&
+                    (!montoRecibido ||
+                      Number(montoRecibido) <
+                        total))
+                }
                 className="rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Cobrar
+                {procesandoVenta ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <LoaderCircle
+                      size={18}
+                      className="animate-spin"
+                    />
+                    Registrando...
+                  </span>
+                ) : (
+                  "Cobrar"
+                )}
               </button>
             </div>
           </div>
