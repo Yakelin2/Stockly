@@ -126,14 +126,16 @@ function Ventas() {
     const texto = busqueda.trim().toLowerCase();
 
     if (!texto) {
-      return productos;
+      return [];
     }
 
-    return productos.filter((producto) =>
-      `${producto.nombre} ${producto.codigo} ${producto.categoria}`
-        .toLowerCase()
-        .includes(texto)
-    );
+    return productos
+      .filter((producto) =>
+        `${producto.nombre} ${producto.codigo} ${producto.categoria}`
+          .toLowerCase()
+          .includes(texto)
+      )
+      .slice(0, 8);
   }, [busqueda, productos]);
 
   const cantidadArticulos = carrito.reduce(
@@ -476,7 +478,7 @@ function Ventas() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <div className="space-y-5">
           <div className="rounded-2xl bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -517,72 +519,59 @@ function Ventas() {
             </p>
           </div>
 
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">
-                  Productos disponibles
-                </h2>
+          {busqueda.trim() ? (
+            <div className="rounded-2xl bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">
+                    Resultados de búsqueda
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Selecciona un producto para agregarlo.
+                  </p>
+                </div>
 
-                <p className="text-sm text-slate-500">
-                  Selecciona un producto para agregarlo.
-                </p>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {productosFiltrados.length}
+                </span>
               </div>
 
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-                {productosFiltrados.length}
-              </span>
-            </div>
-
-            {cargando ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <LoaderCircle
-                  size={38}
-                  className="animate-spin text-blue-600"
-                />
-
-                <p className="mt-3 font-semibold text-slate-700">
-                  Cargando productos
-                </p>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Consultando el inventario de Supabase.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {productosFiltrados.map(
-                  (producto) => {
-                    const agotado =
-                      Number(producto.stock) <= 0;
-
+              {cargando ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <LoaderCircle size={32} className="animate-spin text-blue-600" />
+                  <p className="mt-3 text-sm font-semibold text-slate-700">
+                    Buscando productos...
+                  </p>
+                </div>
+              ) : productosFiltrados.length > 0 ? (
+                <div className="space-y-2">
+                  {productosFiltrados.map((producto) => {
+                    const agotado = Number(producto.stock) <= 0;
                     const stockBajo =
                       !agotado &&
-                      Number(producto.stock) <=
-                        Number(producto.minimo);
+                      Number(producto.stock) <= Number(producto.minimo);
 
                     return (
                       <button
                         key={producto.id}
                         type="button"
-                        onClick={() =>
-                          agregarProducto(producto)
-                        }
+                        onClick={() => {
+                          agregarProducto(producto);
+                          setBusqueda("");
+                        }}
                         disabled={agotado}
-                        className="flex w-full items-center justify-between gap-4 rounded-xl border border-slate-200 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60"
+                        className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60"
                       >
                         <div className="flex min-w-0 items-center gap-3">
                           {producto.imagen ? (
                             <img
                               src={producto.imagen}
                               alt={producto.nombre}
-                              className="h-12 w-12 shrink-0 rounded-xl border border-slate-200 object-cover"
+                              className="h-11 w-11 shrink-0 rounded-lg border border-slate-200 object-cover"
                             />
                           ) : (
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                              <PackageSearch
-                                size={22}
-                              />
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                              <PackageSearch size={20} />
                             </div>
                           )}
 
@@ -590,14 +579,11 @@ function Ventas() {
                             <p className="truncate font-semibold text-slate-900">
                               {producto.nombre}
                             </p>
-
-                            <p className="mt-1 text-sm text-slate-500">
-                              Código:{" "}
-                              {producto.codigo}
+                            <p className="mt-0.5 truncate text-xs text-slate-500">
+                              Código: {producto.codigo}
                             </p>
-
                             <p
-                              className={`mt-1 text-xs font-medium ${
+                              className={`mt-0.5 text-xs font-medium ${
                                 agotado
                                   ? "text-red-600"
                                   : stockBajo
@@ -607,132 +593,136 @@ function Ventas() {
                             >
                               {agotado
                                 ? "Producto agotado"
-                                : `Stock disponible: ${producto.stock}`}
+                                : `Stock: ${producto.stock}`}
                             </p>
                           </div>
                         </div>
 
                         <div className="shrink-0 text-right">
                           <p className="font-bold text-blue-700">
-                            {Number(
-                              producto.venta
-                            ).toLocaleString(
-                              "es-MX",
-                              {
-                                style:
-                                  "currency",
-                                currency: "MXN",
-                              }
-                            )}
+                            {Number(producto.venta).toLocaleString("es-MX", {
+                              style: "currency",
+                              currency: "MXN",
+                            })}
                           </p>
-
                           <span
-                            className={`mt-2 inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                            className={`mt-1 inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold ${
                               agotado
                                 ? "bg-slate-200 text-slate-500"
                                 : "bg-blue-600 text-white"
                             }`}
                           >
-                            <Plus size={15} />
-                            {agotado
-                              ? "Agotado"
-                              : "Agregar"}
+                            <Plus size={14} />
+                            {agotado ? "Agotado" : "Agregar"}
                           </span>
                         </div>
                       </button>
                     );
-                  }
-                )}
-
-                {productosFiltrados.length ===
-                  0 && (
-                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 px-6 py-12 text-center">
-                    <PackageSearch
-                      size={42}
-                      className="text-slate-300"
-                    />
-
-                    <p className="mt-3 font-semibold text-slate-700">
-                      No encontramos productos
-                    </p>
-
-                    <p className="mt-1 text-sm text-slate-500">
-                      Prueba con otro nombre o código.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 px-5 py-9 text-center">
+                  <PackageSearch size={36} className="text-slate-300" />
+                  <p className="mt-3 font-semibold text-slate-700">
+                    No encontramos productos
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Prueba con otro nombre o código.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex min-h-[300px] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 py-10 text-center shadow-sm">
+              <PackageSearch size={38} className="text-slate-300" />
+              <p className="mt-3 font-semibold text-slate-700">
+                Busca o escanea un producto
+              </p>
+              <p className="mt-1 max-w-md text-sm text-slate-500">
+                Los resultados aparecerán aquí únicamente cuando escribas
+                un nombre, un código o utilices el escáner.
+              </p>
+            </div>
+          )}
         </div>
 
-        <aside className="h-fit overflow-hidden rounded-2xl bg-white shadow-sm xl:sticky xl:top-6">
-          <div className="flex items-center justify-between border-b border-slate-200 p-5">
+        <aside className="h-fit overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:sticky xl:top-6">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
             <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-blue-100 p-2.5 text-blue-700">
+              <div className="rounded-xl bg-blue-50 p-2.5 text-blue-600">
                 <ShoppingCart size={22} />
               </div>
 
               <div>
-                <h2 className="text-lg font-bold text-slate-900">
+                <h2 className="text-xl font-bold text-slate-900">
                   Carrito
                 </h2>
 
                 <p className="text-sm text-slate-500">
-                  {cantidadArticulos}{" "}
+                  {carrito.length}{" "}
+                  {carrito.length === 1
+                    ? "producto"
+                    : "productos"}{" "}
+                  · {cantidadArticulos}{" "}
                   {cantidadArticulos === 1
-                    ? "artículo"
-                    : "artículos"}
+                    ? "unidad"
+                    : "unidades"}
                 </p>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={cancelarVenta}
+              disabled={
+                carrito.length === 0 ||
+                procesandoVenta
+              }
+              className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Trash2 size={16} />
+              Vaciar
+            </button>
           </div>
 
-          <div className="max-h-[440px] space-y-3 overflow-y-auto p-5">
+          <div className="max-h-[360px] space-y-3 overflow-y-auto bg-slate-50/50 p-4">
             {carrito.map((producto) => (
-              <div
+              <article
                 key={producto.id}
-                className="rounded-xl border border-slate-200 p-4"
+                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    {producto.imagen ? (
-                      <img
-                        src={producto.imagen}
-                        alt={producto.nombre}
-                        className="h-11 w-11 shrink-0 rounded-lg border border-slate-200 object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                        <PackageSearch
-                          size={19}
-                        />
-                      </div>
-                    )}
-
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold text-slate-900">
-                        {producto.nombre}
-                      </p>
-
-                      <p className="mt-1 text-sm text-slate-500">
-                        {Number(
-                          producto.venta
-                        ).toLocaleString(
-                          "es-MX",
-                          {
-                            style: "currency",
-                            currency: "MXN",
-                          }
-                        )}{" "}
-                        c/u
-                      </p>
-
-                      <p className="mt-1 text-xs text-slate-400">
-                        Stock máximo:{" "}
-                        {producto.stock}
-                      </p>
+                <div className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3">
+                  {producto.imagen ? (
+                    <img
+                      src={producto.imagen}
+                      alt={producto.nombre}
+                      className="h-12 w-12 rounded-xl border border-slate-200 object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                      <PackageSearch size={20} />
                     </div>
+                  )}
+
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-slate-900">
+                      {producto.nombre}
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      {Number(producto.venta).toLocaleString(
+                        "es-MX",
+                        {
+                          style: "currency",
+                          currency: "MXN",
+                        }
+                      )}{" "}
+                      c/u
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-400">
+                      Stock disponible: {producto.stock}
+                    </p>
                   </div>
 
                   <button
@@ -740,15 +730,15 @@ function Ventas() {
                     onClick={() =>
                       eliminarProducto(producto.id)
                     }
-                    className="rounded-lg p-2 text-red-500 transition hover:bg-red-50"
+                    className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
                     aria-label={`Eliminar ${producto.nombre}`}
                   >
-                    <Trash2 size={18} />
+                    <Trash2 size={17} />
                   </button>
                 </div>
 
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                <div className="mt-4 flex items-center justify-between gap-4 border-t border-slate-100 pt-3">
+                  <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white">
                     <button
                       type="button"
                       onClick={() =>
@@ -757,13 +747,13 @@ function Ventas() {
                           -1
                         )
                       }
-                      className="rounded-lg border border-slate-300 p-2 text-slate-700 hover:bg-slate-50"
+                      className="px-3 py-2.5 text-slate-600 transition hover:bg-slate-100"
                       aria-label="Disminuir cantidad"
                     >
-                      <Minus size={16} />
+                      <Minus size={15} />
                     </button>
 
-                    <span className="min-w-8 text-center font-bold text-slate-900">
+                    <span className="min-w-11 border-x border-slate-200 px-3 py-2 text-center font-bold text-slate-900">
                       {producto.cantidad}
                     </span>
 
@@ -776,56 +766,63 @@ function Ventas() {
                         )
                       }
                       disabled={
-                        Number(
-                          producto.cantidad
-                        ) >=
+                        Number(producto.cantidad) >=
                         Number(producto.stock)
                       }
-                      className="rounded-lg border border-slate-300 p-2 text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="px-3 py-2.5 text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
                       aria-label="Aumentar cantidad"
                     >
-                      <Plus size={16} />
+                      <Plus size={15} />
                     </button>
                   </div>
 
-                  <p className="font-bold text-slate-900">
-                    {(
-                      Number(producto.venta) *
-                      Number(producto.cantidad)
-                    ).toLocaleString(
-                      "es-MX",
-                      {
+                  <div className="text-right">
+                    <p className="text-xs text-slate-400">
+                      Subtotal
+                    </p>
+
+                    <p className="text-xl font-black text-slate-900">
+                      {(
+                        Number(producto.venta) *
+                        Number(producto.cantidad)
+                      ).toLocaleString("es-MX", {
                         style: "currency",
                         currency: "MXN",
-                      }
-                    )}
-                  </p>
+                      })}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </article>
             ))}
 
             {carrito.length === 0 && (
-              <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+              <div className="flex min-h-44 flex-col items-center justify-center px-4 text-center">
                 <ShoppingCart
-                  size={44}
+                  size={40}
                   className="text-slate-300"
                 />
 
                 <p className="mt-3 font-semibold text-slate-700">
-                  El carrito está vacío
+                  Carrito vacío
                 </p>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Agrega productos para comenzar la venta.
+                  Busca o escanea un producto para comenzar.
                 </p>
               </div>
             )}
           </div>
 
-          <div className="space-y-4 border-t border-slate-200 p-5">
-            <div className="space-y-3">
+          <div className="border-t border-slate-200 bg-white p-5">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                Resumen de pago
+              </p>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="block space-y-1.5">
-                <span className="text-sm font-semibold text-slate-700">
+                <span className="text-sm font-medium text-slate-600">
                   Método de pago
                 </span>
 
@@ -837,7 +834,7 @@ function Ventas() {
                     limpiarMensajes();
                   }}
                   disabled={procesandoVenta}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:opacity-60"
                 >
                   <option value="efectivo">
                     Efectivo
@@ -854,9 +851,9 @@ function Ventas() {
                 </select>
               </label>
 
-              {metodoPago === "efectivo" && (
+              {metodoPago === "efectivo" ? (
                 <label className="block space-y-1.5">
-                  <span className="text-sm font-semibold text-slate-700">
+                  <span className="text-sm font-medium text-slate-600">
                     Monto recibido
                   </span>
 
@@ -874,43 +871,70 @@ function Ventas() {
                     inputMode="decimal"
                     disabled={procesandoVenta}
                     placeholder="0.00"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:opacity-60"
                   />
                 </label>
+              ) : (
+                <div className="hidden sm:block" />
               )}
-
-              {metodoPago === "efectivo" &&
-                Number(montoRecibido) >= total &&
-                total > 0 && (
-                  <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2.5 text-sm">
-                    <span className="font-medium text-emerald-700">
-                      Cambio
-                    </span>
-
-                    <span className="font-bold text-emerald-800">
-                      {cambio.toLocaleString("es-MX", {
-                        style: "currency",
-                        currency: "MXN",
-                      })}
-                    </span>
-                  </div>
-                )}
             </div>
 
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500">
-                Total
-              </span>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-sm text-slate-500">
+                  Productos diferentes
+                </p>
 
-              <span className="text-2xl font-bold text-slate-900">
-                {total.toLocaleString("es-MX", {
-                  style: "currency",
-                  currency: "MXN",
-                })}
-              </span>
+                <p className="mt-1 text-2xl font-black text-slate-900">
+                  {carrito.length}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-sm text-slate-500">
+                  Unidades totales
+                </p>
+
+                <p className="mt-1 text-2xl font-black text-slate-900">
+                  {cantidadArticulos}
+                </p>
+              </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-semibold text-emerald-700">
+                  Cambio
+                </p>
+
+                <p className="mt-1 text-2xl font-black text-emerald-800">
+                  {(
+                    metodoPago === "efectivo" &&
+                    Number(montoRecibido) >= total
+                      ? cambio
+                      : 0
+                  ).toLocaleString("es-MX", {
+                    style: "currency",
+                    currency: "MXN",
+                  })}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                <p className="text-sm font-semibold text-blue-700">
+                  Total a cobrar
+                </p>
+
+                <p className="mt-1 text-2xl font-black text-blue-800">
+                  {total.toLocaleString("es-MX", {
+                    style: "currency",
+                    currency: "MXN",
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-[0.8fr_1.2fr]">
               <button
                 type="button"
                 onClick={cancelarVenta}
@@ -918,9 +942,9 @@ function Ventas() {
                   carrito.length === 0 ||
                   procesandoVenta
                 }
-                className="rounded-xl border border-slate-300 px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Cancelar venta
+                Vaciar carrito
               </button>
 
               <button
@@ -934,7 +958,7 @@ function Ventas() {
                       Number(montoRecibido) <
                         total))
                 }
-                className="rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white shadow-sm transition hover:bg-emerald-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {procesandoVenta ? (
                   <span className="flex items-center justify-center gap-2">
@@ -945,7 +969,13 @@ function Ventas() {
                     Registrando...
                   </span>
                 ) : (
-                  "Cobrar"
+                  `Cobrar ${total.toLocaleString(
+                    "es-MX",
+                    {
+                      style: "currency",
+                      currency: "MXN",
+                    }
+                  )}`
                 )}
               </button>
             </div>
