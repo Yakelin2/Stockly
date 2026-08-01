@@ -82,9 +82,14 @@ export async function registrarCompra({
     throw new Error("Agrega al menos un producto a la compra.");
   }
 
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+
   const productosRpc = productos.map((item) => {
     const cantidad = Number(item.cantidad);
     const costoUnitario = Number(item.costoUnitario);
+    const fechaCaducidad =
+      String(item.fechaCaducidad ?? "").trim() || null;
 
     if (!item.productoId) {
       throw new Error("Hay un producto sin identificador.");
@@ -100,10 +105,24 @@ export async function registrarCompra({
       throw new Error("Todos los costos deben ser números válidos.");
     }
 
+    if (fechaCaducidad) {
+      const fecha = new Date(`${fechaCaducidad}T00:00:00`);
+
+      if (
+        Number.isNaN(fecha.getTime()) ||
+        fecha < hoy
+      ) {
+        throw new Error(
+          `La fecha de caducidad de ${item.nombre} no es válida.`
+        );
+      }
+    }
+
     return {
       producto_id: item.productoId,
       cantidad,
       costo_unitario: Number(costoUnitario.toFixed(2)),
+      fecha_caducidad: fechaCaducidad,
     };
   });
 

@@ -17,6 +17,10 @@ const DASHBOARD_VACIO = {
   inventario_bajo: [],
   ventas_ultimos_7_dias: [],
   productos_mas_vendidos: [],
+  productos_por_caducar: 0,
+  productos_caducados: 0,
+  valor_caducado: 0,
+  caducidades_proximas: [],
 };
 
 export async function obtenerDashboard() {
@@ -24,14 +28,26 @@ export async function obtenerDashboard() {
     throw new Error("No se encontró VITE_TIENDA_ID en .env.local.");
   }
 
-  const { data, error } = await supabase.rpc("obtener_dashboard_stockly", {
-    p_tienda_id: TIENDA_ID,
-  });
+  const [
+    { data: dashboard, error: dashboardError },
+    { data: caducidades, error: caducidadesError },
+  ] = await Promise.all([
+    supabase.rpc("obtener_dashboard_stockly", {
+      p_tienda_id: TIENDA_ID,
+    }),
+    supabase.rpc("obtener_alertas_caducidad", {
+      p_tienda_id: TIENDA_ID,
+      p_dias_alerta: 14,
+      p_limite: 20,
+    }),
+  ]);
 
-  if (error) throw error;
+  if (dashboardError) throw dashboardError;
+  if (caducidadesError) throw caducidadesError;
 
   return {
     ...DASHBOARD_VACIO,
-    ...(data ?? {}),
+    ...(dashboard ?? {}),
+    ...(caducidades ?? {}),
   };
 }

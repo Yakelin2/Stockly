@@ -8,6 +8,7 @@ import {
   ArrowUpRight,
   BarChart3,
   CircleDollarSign,
+  Clock3,
   Loader2,
   Package,
   PackagePlus,
@@ -34,6 +35,10 @@ const ESTADO_INICIAL = {
   inventario_bajo: [],
   ventas_ultimos_7_dias: [],
   productos_mas_vendidos: [],
+  productos_por_caducar: 0,
+  productos_caducados: 0,
+  valor_caducado: 0,
+  caducidades_proximas: [],
 };
 
 function moneda(valor) {
@@ -735,6 +740,106 @@ function Dashboard() {
           )}
         </article>
       </div>
+
+
+      <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-orange-50 p-2.5 text-orange-600">
+              <Clock3 className="h-5 w-5" />
+            </div>
+
+            <div>
+              <h2 className="text-lg font-black text-slate-950">
+                Próximos a caducar
+              </h2>
+
+              <p className="text-sm text-slate-500">
+                Stock que vence en los próximos 14 días.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <span className="rounded-xl bg-orange-50 px-3 py-2 text-xs font-black text-orange-700">
+              {datos.productos_por_caducar} próximos
+            </span>
+
+            <span className="rounded-xl bg-red-50 px-3 py-2 text-xs font-black text-red-700">
+              {datos.productos_caducados} caducados
+            </span>
+          </div>
+        </div>
+
+        {datos.caducidades_proximas.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 py-10 text-center text-sm text-slate-400">
+            No hay productos próximos a caducar.
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {datos.caducidades_proximas.map((lote) => {
+              const caducado = Number(lote.dias_restantes) < 0;
+              const urgente =
+                !caducado &&
+                Number(lote.dias_restantes) <= 7;
+
+              return (
+                <div
+                  key={lote.lote_id}
+                  className={`rounded-xl border p-3 ${
+                    caducado
+                      ? "border-red-200 bg-red-50"
+                      : urgente
+                        ? "border-orange-200 bg-orange-50"
+                        : "border-amber-200 bg-amber-50"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-900">
+                        {lote.nombre}
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-500">
+                        {lote.cantidad} unidades · Caduca{" "}
+                        {new Intl.DateTimeFormat("es-MX", {
+                          dateStyle: "medium",
+                        }).format(
+                          new Date(
+                            `${lote.fecha_caducidad}T12:00:00`
+                          )
+                        )}
+                      </p>
+                    </div>
+
+                    <span
+                      className={`shrink-0 rounded-lg bg-white px-2 py-1 text-xs font-black shadow-sm ${
+                        caducado
+                          ? "text-red-700"
+                          : urgente
+                            ? "text-orange-700"
+                            : "text-amber-700"
+                      }`}
+                    >
+                      {caducado
+                        ? `Venció hace ${Math.abs(
+                            Number(lote.dias_restantes)
+                          )} días`
+                        : Number(lote.dias_restantes) === 0
+                          ? "Caduca hoy"
+                          : `${lote.dias_restantes} días`}
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-xs font-semibold text-slate-600">
+                    Riesgo estimado: {moneda(lote.costo_estimado)}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </article>
 
       <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-lg font-black text-slate-950">

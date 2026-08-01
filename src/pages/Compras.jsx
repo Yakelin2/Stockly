@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import {
+  CalendarClock,
   Camera,
   CheckCircle2,
   History,
@@ -182,6 +183,7 @@ function Compras() {
           stockActual: Number(producto.stock) || 0,
           cantidad: 1,
           costoUnitario: costoProducto(producto),
+          fechaCaducidad: "",
           imagen: imagenProducto(producto),
         },
       ];
@@ -287,6 +289,19 @@ function Compras() {
       actual.map((item) =>
         item.productoId === productoId
           ? { ...item, costoUnitario: numero }
+          : item
+      )
+    );
+  };
+
+  const cambiarFechaCaducidad = (
+    productoId,
+    fechaCaducidad
+  ) => {
+    setCarrito((actual) =>
+      actual.map((item) =>
+        item.productoId === productoId
+          ? { ...item, fechaCaducidad }
           : item
       )
     );
@@ -728,7 +743,7 @@ function Compras() {
                     </button>
                   </div>
 
-                  <div className="mt-3 grid grid-cols-[1fr_1fr] gap-3">
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <div>
                       <span className="mb-1 block text-xs font-medium text-slate-500">
                         Cantidad
@@ -791,6 +806,28 @@ function Compras() {
                         }
                         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-right outline-none focus:border-emerald-500"
                       />
+                    </label>
+
+                    <label className="sm:col-span-2">
+                      <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                        <CalendarClock className="h-3.5 w-3.5" />
+                        Fecha de caducidad
+                      </span>
+                      <input
+                        type="date"
+                        min={new Date().toISOString().slice(0, 10)}
+                        value={item.fechaCaducidad}
+                        onChange={(evento) =>
+                          cambiarFechaCaducidad(
+                            item.productoId,
+                            evento.target.value
+                          )
+                        }
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-emerald-500"
+                      />
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        Déjalo vacío si el producto no caduca.
+                      </p>
                     </label>
                   </div>
 

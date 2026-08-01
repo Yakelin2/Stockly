@@ -69,14 +69,11 @@ export async function obtenerHistorialVentas({
   return (data ?? []).map((venta) => ({
     ...venta,
     total: Number(venta.total),
-
     monto_recibido:
       venta.monto_recibido === null
         ? null
         : Number(venta.monto_recibido),
-
     cambio: Number(venta.cambio),
-
     articulos: Number(venta.articulos),
   }));
 }
@@ -98,19 +95,14 @@ export async function obtenerDetalleVenta(
 
   return (data ?? []).map((detalle) => ({
     ...detalle,
-
     cantidad: Number(detalle.cantidad),
-
     precio_unitario: Number(
       detalle.precio_unitario
     ),
-
     costo_unitario: Number(
       detalle.costo_unitario
     ),
-
     subtotal: Number(detalle.subtotal),
-
     utilidad: Number(detalle.utilidad),
   }));
 }
