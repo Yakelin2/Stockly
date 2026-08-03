@@ -1,6 +1,7 @@
 // src/pages/Perdidas.jsx
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   Barcode,
@@ -22,6 +23,8 @@ import { obtenerProductos } from "../services/productosService.js";
 import {
   cancelarPerdida,
   obtenerHistorialPerdidas,
+  obtenerLotePorId,
+  obtenerLotesProducto,
   registrarPerdida,
 } from "../services/perdidasService.js";
 
@@ -63,6 +66,27 @@ function motivoLegible(motivo) {
   );
 }
 
+function fechaCaducidadLegible(valor) {
+  if (!valor) return "Sin fecha";
+
+  return new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "medium",
+  }).format(new Date(`${valor}T12:00:00`));
+}
+
+function estadoLoteLegible(estado) {
+  const estados = {
+    caducado: "Caducado",
+    caduca_hoy: "Caduca hoy",
+    urgente: "Caduca pronto",
+    proximo: "Próximo a caducar",
+    vigente: "Vigente",
+    sin_fecha: "Sin fecha",
+  };
+
+  return estados[estado] || estado;
+}
+
 function fechaParaInput(fecha) {
   const anio = fecha.getFullYear();
   const mes = String(fecha.getMonth() + 1).padStart(2, "0");
@@ -72,6 +96,9 @@ function fechaParaInput(fecha) {
 }
 
 function Perdidas() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const loteDesdeDashboard = searchParams.get("lote");
+
   const hoy = useMemo(() => new Date(), []);
   const haceTreintaDias = useMemo(() => {
     const fecha = new Date();
@@ -87,7 +114,12 @@ function Perdidas() {
     useState("");
   const [productoSeleccionado, setProductoSeleccionado] =
     useState(null);
-  const [cantidad, setCantidad] = useState("1");
+  const [lotesProducto, setLotesProducto] = useState([]);
+  const [loteSeleccionadoId, setLoteSeleccionadoId] =
+    useState("");
+  const [cargandoLotes, setCargandoLotes] =
+    useState(false);
+  const [cantidad, setCantidad] = useState("");
   const [motivo, setMotivo] = useState("caducado");
   const [observaciones, setObservaciones] = useState("");
 
@@ -161,6 +193,80 @@ function Perdidas() {
   }, [cargarProductos, cargarHistorial]);
 
   useEffect(() => {
+    if (
+      cargando ||
+      !loteDesdeDashboard ||
+      productoSeleccionado
+    ) {
+      return;
+    }
+
+    async function prepararPerdidaCaducidad() {
+      try {
+        setError("");
+
+        const lote = await obtenerLotePorId(
+          loteDesdeDashboard
+        );
+
+        if (!lote) {
+          setError(
+            "El lote ya no está disponible o ya fue retirado."
+          );
+          setSearchParams({});
+          return;
+        }
+
+        const producto =
+          productos.find(
+            (item) =>
+              item.id === lote.producto_id
+          ) || {
+            id: lote.producto_id,
+            nombre: lote.producto,
+            codigo: lote.codigo_barras,
+            compra: Number(lote.costo_unitario),
+            stock: Number(
+              lote.cantidad_disponible
+            ),
+            categoria: "Sin categoría",
+          };
+
+        setVista("registro");
+        setMotivo("caducado");
+        setObservaciones(
+          `Lote caducado el ${fechaCaducidadLegible(
+            lote.fecha_caducidad
+          )}.`
+        );
+
+        await seleccionarProducto(
+          producto,
+          lote.lote_id
+        );
+
+        setCantidad(
+          String(lote.cantidad_disponible)
+        );
+      } catch (err) {
+        console.error(err);
+        setError(
+          err.message ||
+            "No fue posible preparar la pérdida."
+        );
+      }
+    }
+
+    prepararPerdidaCaducidad();
+  }, [
+    cargando,
+    loteDesdeDashboard,
+    productos,
+    productoSeleccionado,
+    setSearchParams,
+  ]);
+
+  useEffect(() => {
     if (vista !== "historial") return undefined;
 
     const temporizador = window.setTimeout(() => {
@@ -190,10 +296,24 @@ function Perdidas() {
       .slice(0, 8);
   }, [productos, busquedaProducto]);
 
-  const costoPerdido = productoSeleccionado
-    ? Number(productoSeleccionado.compra || 0) *
-      Number(cantidad || 0)
-    : 0;
+  const loteSeleccionado = useMemo(
+    () =>
+      lotesProducto.find(
+        (lote) => lote.lote_id === loteSeleccionadoId
+      ) ?? null,
+    [lotesProducto, loteSeleccionadoId]
+  );
+
+  const costoUnitarioPerdida = loteSeleccionado
+    ? Number(loteSeleccionado.costo_unitario || 0)
+    : Number(productoSeleccionado?.compra || 0);
+
+  const costoPerdido =
+    costoUnitarioPerdida * Number(cantidad || 0);
+
+  const stockDisponiblePerdida = loteSeleccionado
+    ? Number(loteSeleccionado.cantidad_disponible || 0)
+    : Number(productoSeleccionado?.stock || 0);
 
   const resumenHistorial = useMemo(() => {
     const activas = historial.filter(
@@ -223,11 +343,67 @@ function Perdidas() {
     setMensaje("");
   }
 
-  function seleccionarProducto(producto) {
+  async function seleccionarProducto(
+    producto,
+    lotePreferidoId = ""
+  ) {
     setProductoSeleccionado(producto);
     setBusquedaProducto("");
-    setCantidad("1");
+    setCantidad("");
+    setLoteSeleccionadoId("");
     limpiarMensajes();
+
+    try {
+      setCargandoLotes(true);
+
+      const lotes = await obtenerLotesProducto(
+        producto.id
+      );
+
+      setLotesProducto(lotes);
+
+      const lotePreferido = lotePreferidoId
+        ? lotes.find(
+            (lote) =>
+              lote.lote_id === lotePreferidoId
+          )
+        : null;
+
+      const loteAutomatico =
+        lotePreferido ||
+        lotes.find(
+          (lote) =>
+            lote.estado_caducidad === "caducado"
+        ) ||
+        lotes[0] ||
+        null;
+
+      if (loteAutomatico) {
+        setLoteSeleccionadoId(
+          loteAutomatico.lote_id
+        );
+
+        if (
+          loteAutomatico.estado_caducidad ===
+          "caducado"
+        ) {
+          setMotivo("caducado");
+          setCantidad(
+            String(
+              loteAutomatico.cantidad_disponible
+            )
+          );
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setError(
+        err.message ||
+          "No fue posible cargar los lotes del producto."
+      );
+    } finally {
+      setCargandoLotes(false);
+    }
   }
 
   function detectarCodigo(codigo) {
@@ -273,10 +449,10 @@ function Perdidas() {
 
     if (
       cantidadNumero >
-      Number(productoSeleccionado.stock)
+      stockDisponiblePerdida
     ) {
       setError(
-        `Solo hay ${productoSeleccionado.stock} unidades disponibles.`
+        `Solo hay ${stockDisponiblePerdida} unidades disponibles en la selección actual.`
       );
       return;
     }
@@ -292,6 +468,7 @@ function Perdidas() {
 
       await registrarPerdida({
         productoId: productoSeleccionado.id,
+        loteId: loteSeleccionadoId || null,
         cantidad: cantidadNumero,
         motivo,
         observaciones,
@@ -299,9 +476,12 @@ function Perdidas() {
 
       setMensaje("La pérdida se registró correctamente.");
       setProductoSeleccionado(null);
-      setCantidad("1");
+      setLotesProducto([]);
+      setLoteSeleccionadoId("");
+      setCantidad("");
       setMotivo("caducado");
       setObservaciones("");
+      setSearchParams({});
 
       await Promise.all([
         cargarProductos(),
@@ -427,6 +607,20 @@ function Perdidas() {
         </div>
       )}
 
+      {loteDesdeDashboard &&
+        productoSeleccionado &&
+        loteSeleccionado && (
+          <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 text-orange-800">
+            <p className="font-black">
+              Pérdida preparada desde el Dashboard
+            </p>
+
+            <p className="mt-1 text-sm">
+              Revisa físicamente el lote y confirma la cantidad. Stockly no descontará nada hasta que pulses “Registrar pérdida”.
+            </p>
+          </div>
+        )}
+
       {vista === "registro" ? (
         <div className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
           <div className="space-y-4">
@@ -543,18 +737,36 @@ function Perdidas() {
                       {productoSeleccionado.nombre}
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Stock disponible: {productoSeleccionado.stock}
+                      Stock total: {productoSeleccionado.stock}
                     </p>
+
                     <p className="text-sm text-slate-500">
-                      Costo unitario: {moneda(productoSeleccionado.compra)}
+                      Costo usado: {moneda(costoUnitarioPerdida)}
                     </p>
+
+                    {loteSeleccionado && (
+                      <p className="mt-1 text-xs font-semibold text-red-700">
+                        Lote: {estadoLoteLegible(
+                          loteSeleccionado.estado_caducidad
+                        )} ·{" "}
+                        {loteSeleccionado.fecha_caducidad
+                          ? fechaCaducidadLegible(
+                              loteSeleccionado.fecha_caducidad
+                            )
+                          : "sin fecha"}
+                      </p>
+                    )}
                   </div>
 
                   <button
                     type="button"
-                    onClick={() =>
-                      setProductoSeleccionado(null)
-                    }
+                    onClick={() => {
+                      setProductoSeleccionado(null);
+                      setLotesProducto([]);
+                      setLoteSeleccionadoId("");
+                      setCantidad("");
+                      setSearchParams({});
+                    }}
                     className="rounded-lg p-2 text-slate-400 hover:bg-white"
                   >
                     <X className="h-4 w-4" />
@@ -568,6 +780,52 @@ function Perdidas() {
             )}
 
             <div className="mt-5 space-y-4">
+              {productoSeleccionado && (
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">
+                    Lote afectado
+                  </span>
+
+                  <select
+                    value={loteSeleccionadoId}
+                    onChange={(evento) => {
+                      setLoteSeleccionadoId(
+                        evento.target.value
+                      );
+                      setCantidad("");
+                    }}
+                    disabled={cargandoLotes}
+                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 outline-none focus:border-red-500"
+                  >
+                    <option value="">
+                      Usar selección automática FEFO
+                    </option>
+
+                    {lotesProducto.map((lote) => (
+                      <option
+                        key={lote.lote_id}
+                        value={lote.lote_id}
+                      >
+                        {lote.fecha_caducidad
+                          ? fechaCaducidadLegible(
+                              lote.fecha_caducidad
+                            )
+                          : "Sin fecha"}{" "}
+                        · {lote.cantidad_disponible} disponibles
+                        · {estadoLoteLegible(
+                          lote.estado_caducidad
+                        )}
+                      </option>
+                    ))}
+                  </select>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    Stock disponible en esta selección:{" "}
+                    {stockDisponiblePerdida}
+                  </p>
+                </label>
+              )}
+
               <label className="block">
                 <span className="text-sm font-bold text-slate-700">
                   Cantidad
@@ -577,9 +835,12 @@ function Perdidas() {
                   type="number"
                   min="1"
                   max={
-                    productoSeleccionado?.stock || undefined
+                    productoSeleccionado
+                      ? stockDisponiblePerdida
+                      : undefined
                   }
                   value={cantidad}
+                  placeholder="Escribe la cantidad"
                   onChange={(evento) =>
                     setCantidad(evento.target.value)
                   }

@@ -834,6 +834,20 @@ function Dashboard() {
                   <p className="mt-2 text-xs font-semibold text-slate-600">
                     Riesgo estimado: {moneda(lote.costo_estimado)}
                   </p>
+
+                  <Link
+                    to={`/perdidas?lote=${lote.lote_id}`}
+                    className={`mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-black transition ${
+                      caducado
+                        ? "bg-red-600 text-white hover:bg-red-700"
+                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                    {caducado
+                      ? "Registrar pérdida"
+                      : "Revisar producto"}
+                  </Link>
                 </div>
               );
             })}

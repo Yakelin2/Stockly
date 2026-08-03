@@ -17,6 +17,7 @@ function limpiarTexto(valor) {
 
 export async function registrarPerdida({
   productoId,
+  loteId = null,
   cantidad,
   motivo,
   observaciones,
@@ -43,10 +44,11 @@ export async function registrarPerdida({
   }
 
   const { data, error } = await supabase.rpc(
-    "registrar_perdida",
+    "registrar_perdida_lote",
     {
       p_tienda_id: TIENDA_ID,
       p_producto_id: productoId,
+      p_lote_id: loteId || null,
       p_cantidad: cantidadNumero,
       p_motivo: motivo,
       p_observaciones: limpiarTexto(observaciones),
@@ -55,6 +57,40 @@ export async function registrarPerdida({
 
   if (error) throw error;
   return data;
+}
+
+export async function obtenerLotesProducto(productoId) {
+  validarTienda();
+
+  if (!productoId) return [];
+
+  const { data, error } = await supabase.rpc(
+    "obtener_lotes_producto_perdida",
+    {
+      p_tienda_id: TIENDA_ID,
+      p_producto_id: productoId,
+    }
+  );
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function obtenerLotePorId(loteId) {
+  validarTienda();
+
+  if (!loteId) return null;
+
+  const { data, error } = await supabase.rpc(
+    "obtener_lote_para_perdida",
+    {
+      p_tienda_id: TIENDA_ID,
+      p_lote_id: loteId,
+    }
+  );
+
+  if (error) throw error;
+  return data ?? null;
 }
 
 export async function obtenerHistorialPerdidas({
