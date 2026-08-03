@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import {
+  Barcode,
   CalendarClock,
   Camera,
   CheckCircle2,
@@ -24,6 +25,11 @@ import {
   registrarCompra,
 } from "../services/comprasService.js";
 import HistorialCompras from "../components/compras/HistorialCompras.jsx";
+import { crearProducto } from "../services/productosService.js";
+import {
+  crearCategoria,
+  obtenerCategorias,
+} from "../services/categoriasService.js";
 
 const PROVEEDOR_INICIAL = {
   nombre: "",
@@ -32,6 +38,18 @@ const PROVEEDOR_INICIAL = {
   direccion: "",
   notas: "",
 };
+
+const PRODUCTO_NUEVO_INICIAL = {
+  nombre: "",
+  codigo: "",
+  categoria: "",
+  venta: "",
+  minimo: "5",
+  cantidadCompra: "",
+  costoCompra: "",
+  fechaCaducidad: "",
+};
+
 
 function moneda(valor) {
   return new Intl.NumberFormat("es-MX", {
@@ -55,6 +73,7 @@ function textoProducto(producto) {
 function costoProducto(producto) {
   return Number(
     producto.precio_compra ??
+      producto.compra ??
       producto.costo ??
       producto.costo_compra ??
       0
@@ -75,6 +94,20 @@ function Compras() {
   const [productos, setProductos] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [carrito, setCarrito] = useState([]);
+
+  const [categorias, setCategorias] = useState([]);
+  const [modalProducto, setModalProducto] = useState(false);
+  const [nuevoProducto, setNuevoProducto] = useState(
+    PRODUCTO_NUEVO_INICIAL
+  );
+  const [guardandoProducto, setGuardandoProducto] =
+    useState(false);
+  const [mostrarNuevaCategoria, setMostrarNuevaCategoria] =
+    useState(false);
+  const [nombreNuevaCategoria, setNombreNuevaCategoria] =
+    useState("");
+  const [guardandoCategoria, setGuardandoCategoria] =
+    useState(false);
 
   const [busqueda, setBusqueda] = useState("");
   const [proveedorId, setProveedorId] = useState("");
@@ -109,13 +142,19 @@ function Compras() {
     limpiarMensajes();
 
     try {
-      const [productosData, proveedoresData] = await Promise.all([
+      const [
+        productosData,
+        proveedoresData,
+        categoriasData,
+      ] = await Promise.all([
         obtenerProductosCompra(),
         obtenerProveedores(),
+        obtenerCategorias(),
       ]);
 
       setProductos(productosData);
       setProveedores(proveedoresData);
+      setCategorias(categoriasData);
     } catch (err) {
       console.error(err);
       setError(err.message || "No fue posible cargar el módulo de compras.");
@@ -168,7 +207,11 @@ function Compras() {
       if (existente) {
         return actual.map((item) =>
           item.productoId === producto.id
-            ? { ...item, cantidad: item.cantidad + 1 }
+            ? {
+                ...item,
+                cantidad:
+                  (Number(item.cantidad) || 0) + 1,
+              }
             : item
         );
       }
@@ -181,8 +224,8 @@ function Compras() {
           codigoBarras:
             producto.codigo_barras ?? producto.codigo ?? "",
           stockActual: Number(producto.stock) || 0,
-          cantidad: 1,
-          costoUnitario: costoProducto(producto),
+          cantidad: "",
+          costoUnitario: "",
           fechaCaducidad: "",
           imagen: imagenProducto(producto),
         },
@@ -205,9 +248,14 @@ function Compras() {
       );
 
       if (!producto) {
-        setError(`No se encontró un producto con el código ${limpio}.`);
+        setError("");
         setMensaje("");
         setBusqueda(limpio);
+        setNuevoProducto({
+          ...PRODUCTO_NUEVO_INICIAL,
+          codigo: limpio,
+        });
+        setModalProducto(true);
         return false;
       }
 
@@ -271,7 +319,24 @@ function Compras() {
   }, [procesarCodigo]);
 
   const cambiarCantidad = (productoId, cantidad) => {
-    const numero = Math.max(1, Math.trunc(Number(cantidad) || 1));
+    const valor = String(cantidad);
+
+    if (valor === "") {
+      setCarrito((actual) =>
+        actual.map((item) =>
+          item.productoId === productoId
+            ? { ...item, cantidad: "" }
+            : item
+        )
+      );
+
+      return;
+    }
+
+    const numero = Math.max(
+      1,
+      Math.trunc(Number(valor) || 1)
+    );
 
     setCarrito((actual) =>
       actual.map((item) =>
@@ -283,7 +348,21 @@ function Compras() {
   };
 
   const cambiarCosto = (productoId, costo) => {
-    const numero = Math.max(0, Number(costo) || 0);
+    const valor = String(costo);
+
+    if (valor === "") {
+      setCarrito((actual) =>
+        actual.map((item) =>
+          item.productoId === productoId
+            ? { ...item, costoUnitario: "" }
+            : item
+        )
+      );
+
+      return;
+    }
+
+    const numero = Math.max(0, Number(valor));
 
     setCarrito((actual) =>
       actual.map((item) =>
@@ -312,6 +391,223 @@ function Compras() {
       actual.filter((item) => item.productoId !== productoId)
     );
   };
+
+  function abrirModalProducto({
+    nombre = "",
+    codigo = "",
+  } = {}) {
+    limpiarMensajes();
+    setNuevoProducto({
+      ...PRODUCTO_NUEVO_INICIAL,
+      nombre,
+      codigo,
+    });
+    setNombreNuevaCategoria("");
+    setMostrarNuevaCategoria(false);
+    setModalProducto(true);
+  }
+
+  function cerrarModalProducto() {
+    if (guardandoProducto || guardandoCategoria) {
+      return;
+    }
+
+    setModalProducto(false);
+    setNuevoProducto(PRODUCTO_NUEVO_INICIAL);
+    setNombreNuevaCategoria("");
+    setMostrarNuevaCategoria(false);
+  }
+
+  function cambiarNuevoProducto(evento) {
+    const { name, value } = evento.target;
+
+    setNuevoProducto((actual) => ({
+      ...actual,
+      [name]: value,
+    }));
+  }
+
+  async function guardarCategoriaProducto(evento) {
+    evento.preventDefault();
+
+    try {
+      setGuardandoCategoria(true);
+      limpiarMensajes();
+
+      const categoria = await crearCategoria(
+        nombreNuevaCategoria
+      );
+
+      setCategorias((actuales) =>
+        [...actuales, categoria].sort((a, b) =>
+          a.nombre.localeCompare(b.nombre, "es")
+        )
+      );
+
+      setNuevoProducto((actual) => ({
+        ...actual,
+        categoria: categoria.nombre,
+      }));
+
+      setNombreNuevaCategoria("");
+      setMostrarNuevaCategoria(false);
+    } catch (err) {
+      console.error(err);
+      setError(
+        err.message ||
+          "No fue posible crear la categoría."
+      );
+    } finally {
+      setGuardandoCategoria(false);
+    }
+  }
+
+  async function guardarProductoDesdeCompra(evento) {
+    evento.preventDefault();
+    limpiarMensajes();
+
+    const nombre = nuevoProducto.nombre.trim();
+    const codigo = nuevoProducto.codigo.trim();
+    const precioVenta = Number(nuevoProducto.venta);
+    const stockMinimo = Number(nuevoProducto.minimo);
+    const cantidadCompra = Number(
+      nuevoProducto.cantidadCompra
+    );
+    const costoCompra = Number(
+      nuevoProducto.costoCompra
+    );
+
+    if (!nombre) {
+      setError("Escribe el nombre del producto.");
+      return;
+    }
+
+    if (!codigo) {
+      setError("Escribe o escanea el código de barras.");
+      return;
+    }
+
+    if (!nuevoProducto.categoria) {
+      setError("Selecciona una categoría.");
+      return;
+    }
+
+    if (
+      nuevoProducto.venta === "" ||
+      !Number.isFinite(precioVenta) ||
+      precioVenta < 0
+    ) {
+      setError("Escribe un precio de venta válido.");
+      return;
+    }
+
+    if (
+      !Number.isInteger(stockMinimo) ||
+      stockMinimo < 0
+    ) {
+      setError(
+        "El stock mínimo debe ser un entero igual o mayor que cero."
+      );
+      return;
+    }
+
+    if (
+      nuevoProducto.cantidadCompra === "" ||
+      !Number.isInteger(cantidadCompra) ||
+      cantidadCompra <= 0
+    ) {
+      setError(
+        "La cantidad recibida debe ser un entero mayor que cero."
+      );
+      return;
+    }
+
+    if (
+      nuevoProducto.costoCompra === "" ||
+      !Number.isFinite(costoCompra) ||
+      costoCompra < 0
+    ) {
+      setError(
+        "Escribe un costo unitario válido."
+      );
+      return;
+    }
+
+    if (nuevoProducto.fechaCaducidad) {
+      const fecha = new Date(
+        `${nuevoProducto.fechaCaducidad}T00:00:00`
+      );
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+
+      if (
+        Number.isNaN(fecha.getTime()) ||
+        fecha < hoy
+      ) {
+        setError(
+          "La fecha de caducidad no puede estar en el pasado."
+        );
+        return;
+      }
+    }
+
+    try {
+      setGuardandoProducto(true);
+
+      const productoCreado = await crearProducto(
+        {
+          nombre,
+          codigo,
+          categoria: nuevoProducto.categoria,
+          compra: String(costoCompra),
+          venta: String(precioVenta),
+          stock: "0",
+          minimo: String(stockMinimo),
+          imagen: "",
+        },
+        null
+      );
+
+      setProductos((actuales) => [
+        productoCreado,
+        ...actuales,
+      ]);
+
+      setCarrito((actuales) => [
+        ...actuales,
+        {
+          productoId: productoCreado.id,
+          nombre: productoCreado.nombre,
+          codigo:
+            productoCreado.codigo ??
+            productoCreado.codigo_barras ??
+            "",
+          cantidad: cantidadCompra,
+          costoUnitario: costoCompra,
+          fechaCaducidad:
+            nuevoProducto.fechaCaducidad || "",
+          imagen: productoCreado.imagen ?? null,
+        },
+      ]);
+
+      setModalProducto(false);
+      setNuevoProducto(PRODUCTO_NUEVO_INICIAL);
+      setMostrarNuevaCategoria(false);
+      setNombreNuevaCategoria("");
+
+      setMensaje(
+        `${productoCreado.nombre} fue creado y agregado con sus datos de compra.`
+      );
+    } catch (err) {
+      console.error(err);
+      setError(
+        err.message ||
+          "No fue posible crear el producto."
+      );
+    } finally {
+      setGuardandoProducto(false);
+    }
+  }
 
   const guardarProveedor = async (evento) => {
     evento.preventDefault();
@@ -509,6 +805,15 @@ function Compras() {
         <div className="flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
+            onClick={() => abrirModalProducto()}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+          >
+            <PackagePlus className="h-5 w-5" />
+            Nuevo producto
+          </button>
+
+          <button
+            type="button"
             onClick={() => setVista("historial")}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
           >
@@ -640,14 +945,37 @@ function Compras() {
           </div>
 
           {productosFiltrados.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-14 text-center">
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-12 text-center">
               <Search className="mx-auto h-9 w-9 text-slate-300" />
+
               <p className="mt-3 font-medium text-slate-600">
                 No encontramos productos.
               </p>
-              <p className="text-sm text-slate-400">
-                Revisa el nombre o el código de barras.
+
+              <p className="mt-1 text-sm text-slate-400">
+                Puedes registrarlo sin salir de esta compra.
               </p>
+
+              <button
+                type="button"
+                onClick={() =>
+                  abrirModalProducto({
+                    nombre: busqueda.trim(),
+                    codigo: /^\d{4,}$/.test(
+                      busqueda.trim()
+                    )
+                      ? busqueda.trim()
+                      : "",
+                  })
+                }
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white transition hover:bg-emerald-700"
+              >
+                <PackagePlus className="h-5 w-5" />
+                Crear
+                {busqueda.trim()
+                  ? ` "${busqueda.trim()}"`
+                  : " producto"}
+              </button>
             </div>
           )}
         </div>
@@ -658,7 +986,13 @@ function Compras() {
               Resumen de compra
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              {carrito.length} productos · {totalUnidades} unidades
+              {carrito.length === 0
+                ? "No hay productos seleccionados"
+                : carrito.length === 1
+                  ? `${carrito[0].nombre} · ${
+                      Number(carrito[0].cantidad) || 0
+                    } unidades`
+                  : `${carrito.length} productos · ${totalUnidades} unidades`}
             </p>
           </div>
 
@@ -754,7 +1088,10 @@ function Compras() {
                           onClick={() =>
                             cambiarCantidad(
                               item.productoId,
-                              item.cantidad - 1
+                              Math.max(
+                                1,
+                                (Number(item.cantidad) || 1) - 1
+                              )
                             )
                           }
                           className="px-2 hover:bg-slate-100"
@@ -766,6 +1103,10 @@ function Compras() {
                           min="1"
                           step="1"
                           value={item.cantidad}
+                          placeholder="Ej. 27"
+                          onFocus={(evento) =>
+                            evento.target.select()
+                          }
                           onChange={(evento) =>
                             cambiarCantidad(
                               item.productoId,
@@ -779,7 +1120,7 @@ function Compras() {
                           onClick={() =>
                             cambiarCantidad(
                               item.productoId,
-                              item.cantidad + 1
+                              (Number(item.cantidad) || 0) + 1
                             )
                           }
                           className="px-2 hover:bg-slate-100"
@@ -798,6 +1139,10 @@ function Compras() {
                         min="0"
                         step="0.01"
                         value={item.costoUnitario}
+                        placeholder="Ej. 27.00"
+                        onFocus={(evento) =>
+                          evento.target.select()
+                        }
                         onChange={(evento) =>
                           cambiarCosto(
                             item.productoId,
@@ -886,6 +1231,319 @@ function Compras() {
           </div>
         </aside>
       </div>
+
+      {modalProducto && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={guardarProductoDesdeCompra}
+            className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                  Catálogo
+                </p>
+
+                <h2 className="mt-1 text-2xl font-black text-slate-950">
+                  Nuevo producto
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Registra el producto y los datos de esta compra en una sola ventana.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={cerrarModalProducto}
+                disabled={
+                  guardandoProducto ||
+                  guardandoCategoria
+                }
+                className="rounded-xl p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid gap-4 p-5 sm:grid-cols-2">
+              <label className="sm:col-span-2">
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">
+                  Nombre del producto *
+                </span>
+
+                <input
+                  autoFocus
+                  name="nombre"
+                  value={nuevoProducto.nombre}
+                  onChange={cambiarNuevoProducto}
+                  maxLength="120"
+                  required
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </label>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">
+                  Código de barras *
+                </span>
+
+                <div className="relative">
+                  <Barcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
+                  <input
+                    name="codigo"
+                    value={nuevoProducto.codigo}
+                    onChange={cambiarNuevoProducto}
+                    inputMode="numeric"
+                    maxLength="50"
+                    required
+                    className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  />
+                </div>
+              </label>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">
+                  Precio de venta *
+                </span>
+
+                <input
+                  type="number"
+                  name="venta"
+                  value={nuevoProducto.venta}
+                  onChange={cambiarNuevoProducto}
+                  min="0"
+                  step="0.01"
+                  required
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </label>
+
+              <div>
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">
+                  Categoría *
+                </span>
+
+                <select
+                  name="categoria"
+                  value={nuevoProducto.categoria}
+                  onChange={cambiarNuevoProducto}
+                  required
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 outline-none focus:border-emerald-500"
+                >
+                  <option value="">
+                    Selecciona una categoría
+                  </option>
+
+                  {categorias.map((categoria) => (
+                    <option
+                      key={categoria.id}
+                      value={categoria.nombre}
+                    >
+                      {categoria.nombre}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMostrarNuevaCategoria(true)
+                  }
+                  className="mt-2 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-700 hover:text-emerald-800"
+                >
+                  <Plus className="h-4 w-4" />
+                  Nueva categoría
+                </button>
+              </div>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">
+                  Stock mínimo *
+                </span>
+
+                <input
+                  type="number"
+                  name="minimo"
+                  value={nuevoProducto.minimo}
+                  onChange={cambiarNuevoProducto}
+                  min="0"
+                  step="1"
+                  required
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </label>
+
+              <div className="sm:col-span-2">
+                <div className="my-1 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-slate-200" />
+                  <span className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">
+                    Datos de esta compra
+                  </span>
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
+              </div>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">
+                  Cantidad recibida *
+                </span>
+
+                <input
+                  type="number"
+                  name="cantidadCompra"
+                  value={nuevoProducto.cantidadCompra}
+                  onChange={cambiarNuevoProducto}
+                  min="1"
+                  step="1"
+                  placeholder="Ej. 27"
+                  required
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </label>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">
+                  Costo unitario *
+                </span>
+
+                <input
+                  type="number"
+                  name="costoCompra"
+                  value={nuevoProducto.costoCompra}
+                  onChange={cambiarNuevoProducto}
+                  min="0"
+                  step="0.01"
+                  placeholder="Ej. 27.00"
+                  required
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </label>
+
+              <label className="sm:col-span-2">
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">
+                  Fecha de caducidad
+                </span>
+
+                <input
+                  type="date"
+                  name="fechaCaducidad"
+                  value={nuevoProducto.fechaCaducidad}
+                  onChange={cambiarNuevoProducto}
+                  min={new Date()
+                    .toISOString()
+                    .slice(0, 10)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Déjalo vacío si el producto no caduca.
+                </p>
+              </label>
+
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 sm:col-span-2">
+                <p className="font-bold text-emerald-900">
+                  Se agregará listo al resumen
+                </p>
+
+                <p className="mt-1 text-sm leading-6 text-emerald-700">
+                  Al guardar, el producto aparecerá con cantidad, costo y caducidad ya capturados.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-100 p-5 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={cerrarModalProducto}
+                disabled={
+                  guardandoProducto ||
+                  guardandoCategoria
+                }
+                className="rounded-xl border border-slate-200 px-4 py-3 font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                disabled={
+                  guardandoProducto ||
+                  guardandoCategoria
+                }
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-black text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {guardandoProducto ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <PackagePlus className="h-5 w-5" />
+                )}
+
+                {guardandoProducto
+                  ? "Creando..."
+                  : "Crear y agregar a la compra"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {mostrarNuevaCategoria && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={guardarCategoriaProducto}
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
+          >
+            <h3 className="text-xl font-black text-slate-950">
+              Nueva categoría
+            </h3>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Quedará seleccionada en el producto.
+            </p>
+
+            <input
+              autoFocus
+              value={nombreNuevaCategoria}
+              onChange={(evento) =>
+                setNombreNuevaCategoria(
+                  evento.target.value
+                )
+              }
+              placeholder="Nombre de la categoría"
+              className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              required
+            />
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!guardandoCategoria) {
+                    setMostrarNuevaCategoria(false);
+                    setNombreNuevaCategoria("");
+                  }
+                }}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 font-bold text-slate-700 hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                disabled={guardandoCategoria}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {guardandoCategoria && (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                )}
+                Crear categoría
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {modalProveedor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
