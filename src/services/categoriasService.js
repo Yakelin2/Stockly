@@ -1,4 +1,4 @@
-import { supabase, TIENDA_ID } from "./supabase";
+import { supabase, obtenerTiendaActiva } from "./supabase";
 
 function transformarCategoria(categoria) {
   return {
@@ -14,7 +14,7 @@ export async function obtenerCategorias() {
       id,
       nombre
     `)
-    .eq("tienda_id", TIENDA_ID)
+    .eq("tienda_id", obtenerTiendaActiva())
     .eq("activo", true)
     .order("nombre", { ascending: true });
 
@@ -35,7 +35,7 @@ export async function crearCategoria(nombre) {
   const { data, error } = await supabase
     .from("categorias")
     .insert({
-      tienda_id: TIENDA_ID,
+      tienda_id: obtenerTiendaActiva(),
       nombre: nombreLimpio,
     })
     .select(`
@@ -69,7 +69,7 @@ export async function actualizarCategoria(id, nombre) {
       actualizado_en: new Date().toISOString(),
     })
     .eq("id", id)
-    .eq("tienda_id", TIENDA_ID)
+    .eq("tienda_id", obtenerTiendaActiva())
     .select(`
       id,
       nombre
@@ -95,7 +95,7 @@ export async function eliminarCategoriaPorId(id) {
       actualizado_en: new Date().toISOString(),
     })
     .eq("id", id)
-    .eq("tienda_id", TIENDA_ID);
+    .eq("tienda_id", obtenerTiendaActiva());
 
   if (error) {
     throw new Error(error.message);

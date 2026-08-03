@@ -1,13 +1,9 @@
 // src/services/perdidasService.js
 
-import { supabase, TIENDA_ID } from "./supabase.js";
+import { supabase, obtenerTiendaActiva } from "./supabase.js";
 
 function validarTienda() {
-  if (!TIENDA_ID) {
-    throw new Error(
-      "No se encontró VITE_TIENDA_ID en .env.local."
-    );
-  }
+  return obtenerTiendaActiva();
 }
 
 function limpiarTexto(valor) {
@@ -46,7 +42,7 @@ export async function registrarPerdida({
   const { data, error } = await supabase.rpc(
     "registrar_perdida_lote",
     {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: obtenerTiendaActiva(),
       p_producto_id: productoId,
       p_lote_id: loteId || null,
       p_cantidad: cantidadNumero,
@@ -67,7 +63,7 @@ export async function obtenerLotesProducto(productoId) {
   const { data, error } = await supabase.rpc(
     "obtener_lotes_producto_perdida",
     {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: obtenerTiendaActiva(),
       p_producto_id: productoId,
     }
   );
@@ -84,7 +80,7 @@ export async function obtenerLotePorId(loteId) {
   const { data, error } = await supabase.rpc(
     "obtener_lote_para_perdida",
     {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: obtenerTiendaActiva(),
       p_lote_id: loteId,
     }
   );
@@ -106,7 +102,7 @@ export async function obtenerHistorialPerdidas({
   const { data, error } = await supabase.rpc(
     "obtener_historial_perdidas",
     {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: obtenerTiendaActiva(),
       p_busqueda: limpiarTexto(busqueda),
       p_motivo: motivo === "todos" ? null : motivo,
       p_estado: estado === "todos" ? null : estado,
@@ -130,7 +126,7 @@ export async function cancelarPerdida(perdidaId) {
   const { error } = await supabase.rpc(
     "cancelar_perdida",
     {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: obtenerTiendaActiva(),
       p_perdida_id: perdidaId,
     }
   );

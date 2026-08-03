@@ -22,21 +22,22 @@ export const supabase = createClient(
   }
 );
 
-// Mantiene compatibilidad con los servicios existentes. El valor se
-// actualiza cuando AuthContext carga el perfil del usuario.
-export let TIENDA_ID =
-  import.meta.env.VITE_TIENDA_ID || "";
+let tiendaActivaId = "";
 
 export function establecerTiendaActiva(tiendaId) {
-  TIENDA_ID = tiendaId || "";
+  tiendaActivaId = String(tiendaId || "").trim();
+}
+
+export function limpiarTiendaActiva() {
+  tiendaActivaId = "";
 }
 
 export function obtenerTiendaActiva() {
-  if (!TIENDA_ID) {
+  if (!tiendaActivaId) {
     throw new Error(
-      "No hay una tienda activa para el usuario actual."
+      "No hay una tienda activa. Cierra sesión y vuelve a iniciar."
     );
   }
 
-  return TIENDA_ID;
+  return tiendaActivaId;
 }

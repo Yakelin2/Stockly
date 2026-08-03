@@ -1,11 +1,9 @@
 // src/services/comprasService.js
 
-import { supabase, TIENDA_ID } from "./supabase.js";
+import { supabase, obtenerTiendaActiva } from "./supabase.js";
 
 function validarTienda() {
-  if (!TIENDA_ID) {
-    throw new Error("No se encontró VITE_TIENDA_ID en .env.local.");
-  }
+  return obtenerTiendaActiva();
 }
 
 function limpiarTexto(valor) {
@@ -19,7 +17,7 @@ export async function obtenerProductosCompra() {
   const { data, error } = await supabase
     .from("productos")
     .select("*")
-    .eq("tienda_id", TIENDA_ID)
+    .eq("tienda_id", obtenerTiendaActiva())
     .order("nombre", { ascending: true });
 
   if (error) throw error;
@@ -32,7 +30,7 @@ export async function obtenerProveedores() {
   const { data, error } = await supabase.rpc(
     "obtener_proveedores_compra",
     {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: obtenerTiendaActiva(),
     }
   );
 
@@ -52,7 +50,7 @@ export async function crearProveedor(proveedor) {
   const { data, error } = await supabase.rpc(
     "crear_proveedor_compra",
     {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: obtenerTiendaActiva(),
       p_nombre: nombre,
       p_telefono: limpiarTexto(proveedor.telefono),
       p_correo: limpiarTexto(proveedor.correo),
@@ -127,7 +125,7 @@ export async function registrarCompra({
   });
 
   const { data, error } = await supabase.rpc("registrar_compra", {
-    p_tienda_id: TIENDA_ID,
+    p_tienda_id: obtenerTiendaActiva(),
     p_proveedor_id: proveedorId || null,
     p_productos: productosRpc,
     p_numero_factura: limpiarTexto(numeroFactura),
@@ -150,7 +148,7 @@ export async function obtenerHistorialCompras({
   const { data, error } = await supabase.rpc(
     "obtener_historial_compras",
     {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: obtenerTiendaActiva(),
       p_busqueda: limpiarTexto(busqueda),
       p_fecha_inicio: fechaInicio || null,
       p_fecha_fin: fechaFin || null,
@@ -173,7 +171,7 @@ export async function obtenerDetalleCompra(compraId) {
   const { data, error } = await supabase.rpc(
     "obtener_detalle_compra",
     {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: obtenerTiendaActiva(),
       p_compra_id: compraId,
     }
   );
@@ -190,7 +188,7 @@ export async function cancelarCompra(compraId) {
   }
 
   const { error } = await supabase.rpc("cancelar_compra", {
-    p_tienda_id: TIENDA_ID,
+    p_tienda_id: obtenerTiendaActiva(),
     p_compra_id: compraId,
   });
 

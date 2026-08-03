@@ -1,6 +1,6 @@
 // src/services/dashboardService.js
 
-import { supabase, TIENDA_ID } from "./supabase.js";
+import { supabase, obtenerTiendaActiva } from "./supabase.js";
 
 const DASHBOARD_VACIO = {
   ventas_dia: 0,
@@ -24,20 +24,32 @@ const DASHBOARD_VACIO = {
 };
 
 export async function obtenerDashboard() {
-  if (!TIENDA_ID) {
-    throw new Error("No se encontró VITE_TIENDA_ID en .env.local.");
-  }
+  const tiendaId = obtenerTiendaActiva();
+
+  const { data: configuracion, error: configuracionError } =
+    await supabase
+      .from("configuracion_tienda")
+      .select("dias_alerta_caducidad")
+      .eq("tienda_id", tiendaId)
+      .maybeSingle();
+
+  if (configuracionError) throw configuracionError;
+
+  const diasAlerta = Math.max(
+    1,
+    Number(configuracion?.dias_alerta_caducidad) || 14
+  );
 
   const [
     { data: dashboard, error: dashboardError },
     { data: caducidades, error: caducidadesError },
   ] = await Promise.all([
     supabase.rpc("obtener_dashboard_stockly", {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: tiendaId,
     }),
     supabase.rpc("obtener_alertas_caducidad", {
-      p_tienda_id: TIENDA_ID,
-      p_dias_alerta: 14,
+      p_tienda_id: tiendaId,
+      p_dias_alerta: diasAlerta,
       p_limite: 20,
     }),
   ]);

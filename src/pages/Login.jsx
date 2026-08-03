@@ -12,7 +12,11 @@ import {
 import { useAuth } from "../contexts/AuthContext.jsx";
 
 function Login() {
-  const { sesion, iniciarSesion } = useAuth();
+  const {
+    autenticado,
+    cargando: cargandoAuth,
+    iniciarSesion,
+  } = useAuth();
   const location = useLocation();
   const [correo, setCorreo] = useState("");
   const [contrasena, setContrasena] = useState("");
@@ -20,7 +24,7 @@ function Login() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
 
-  if (sesion) {
+  if (autenticado && !cargandoAuth) {
     return (
       <Navigate
         to={location.state?.desde || "/"}

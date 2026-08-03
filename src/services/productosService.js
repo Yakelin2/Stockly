@@ -1,4 +1,4 @@
-import { supabase, TIENDA_ID } from "./supabase";
+import { supabase, obtenerTiendaActiva } from "./supabase";
 
 const BUCKET_PRODUCTOS = "productos";
 
@@ -53,7 +53,7 @@ function crearNombreImagen(archivo) {
   const nombreBase =
     nombreOriginal || "producto";
 
-  return `${TIENDA_ID}/${nombreBase}-${identificador}.${extension}`;
+  return `${obtenerTiendaActiva()}/${nombreBase}-${identificador}.${extension}`;
 }
 
 function obtenerRutaDesdeUrl(urlImagen) {
@@ -154,7 +154,7 @@ export async function obtenerProductos() {
       stock_minimo,
       imagen
     `)
-    .eq("tienda_id", TIENDA_ID)
+    .eq("tienda_id", obtenerTiendaActiva())
     .order("creado_en", { ascending: false });
 
   if (error) {
@@ -177,7 +177,7 @@ export async function crearProducto(
     }
 
     const nuevoRegistro = {
-      tienda_id: TIENDA_ID,
+      tienda_id: obtenerTiendaActiva(),
       nombre: formulario.nombre.trim(),
       codigo_barras: formulario.codigo.trim(),
       categoria:
@@ -281,7 +281,7 @@ export async function actualizarProducto(
       .from("productos")
       .update(cambios)
       .eq("id", id)
-      .eq("tienda_id", TIENDA_ID)
+      .eq("tienda_id", obtenerTiendaActiva())
       .select(`
         id,
         nombre,
@@ -342,7 +342,7 @@ export async function eliminarProductoPorId(
     .from("productos")
     .delete()
     .eq("id", id)
-    .eq("tienda_id", TIENDA_ID);
+    .eq("tienda_id", obtenerTiendaActiva());
 
   if (error) {
     throw new Error(error.message);

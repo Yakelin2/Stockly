@@ -1,6 +1,6 @@
 import {
   supabase,
-  TIENDA_ID,
+  obtenerTiendaActiva,
 } from "./supabase";
 
 export async function registrarVenta({
@@ -33,7 +33,7 @@ export async function registrarVenta({
   const { data, error } = await supabase.rpc(
     "registrar_venta",
     {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: obtenerTiendaActiva(),
       p_metodo_pago: metodoPago,
       p_productos: productos,
       p_monto_recibido: monto,
@@ -56,7 +56,7 @@ export async function obtenerHistorialVentas({
   const { data, error } = await supabase.rpc(
     "obtener_historial_ventas",
     {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: obtenerTiendaActiva(),
       p_desde: desde || null,
       p_hasta: hasta || null,
     }
@@ -84,7 +84,7 @@ export async function obtenerDetalleVenta(
   const { data, error } = await supabase.rpc(
     "obtener_detalle_venta",
     {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: obtenerTiendaActiva(),
       p_venta_id: ventaId,
     }
   );
@@ -113,7 +113,7 @@ export async function cancelarVenta(
   const { error } = await supabase.rpc(
     "cancelar_venta_segura",
     {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: obtenerTiendaActiva(),
       p_venta_id: ventaId,
     }
   );

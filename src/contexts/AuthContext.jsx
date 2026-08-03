@@ -33,13 +33,47 @@ export function AuthProvider({ children }) {
     }
 
     const contexto = await obtenerPerfilActual(usuario.id);
+
     setPerfil(contexto);
     establecerTiendaActiva(contexto.tienda_id);
+
     return contexto;
   }, []);
 
   useEffect(() => {
     let activo = true;
+
+    async function aplicarSesion(nuevaSesion) {
+      if (!activo) return;
+
+      setCargando(true);
+      setError("");
+      setSesion(nuevaSesion);
+
+      try {
+        if (nuevaSesion?.user) {
+          await cargarPerfil(nuevaSesion.user);
+        } else {
+          setPerfil(null);
+          establecerTiendaActiva("");
+        }
+      } catch (err) {
+        console.error(err);
+
+        if (activo) {
+          setPerfil(null);
+          establecerTiendaActiva("");
+          setError(
+            err.message ||
+              "No fue posible cargar el perfil del usuario."
+          );
+        }
+      } finally {
+        if (activo) {
+          setCargando(false);
+        }
+      }
+    }
 
     async function inicializar() {
       try {
@@ -47,17 +81,18 @@ export function AuthProvider({ children }) {
           await supabase.auth.getSession();
 
         if (errorSesion) throw errorSesion;
-        if (!activo) return;
 
-        setSesion(data.session);
-        if (data.session?.user) {
-          await cargarPerfil(data.session.user);
-        }
+        await aplicarSesion(data.session);
       } catch (err) {
         console.error(err);
-        if (activo) setError(err.message);
-      } finally {
-        if (activo) setCargando(false);
+
+        if (activo) {
+          setSesion(null);
+          setPerfil(null);
+          establecerTiendaActiva("");
+          setError(err.message);
+          setCargando(false);
+        }
       }
     }
 
@@ -66,22 +101,8 @@ export function AuthProvider({ children }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
-      async (_evento, nuevaSesion) => {
-        setSesion(nuevaSesion);
-
-        try {
-          if (nuevaSesion?.user) {
-            await cargarPerfil(nuevaSesion.user);
-          } else {
-            setPerfil(null);
-            establecerTiendaActiva("");
-          }
-        } catch (err) {
-          console.error(err);
-          setError(err.message);
-        } finally {
-          setCargando(false);
-        }
+      (_evento, nuevaSesion) => {
+        aplicarSesion(nuevaSesion);
       }
     );
 
@@ -92,32 +113,64 @@ export function AuthProvider({ children }) {
   }, [cargarPerfil]);
 
   async function iniciarSesion(correo, contrasena) {
+    setCargando(true);
     setError("");
-    const resultado = await iniciarSesionServicio(
-      correo,
-      contrasena
-    );
-    setSesion(resultado.session);
-    await cargarPerfil(resultado.user);
+
+    try {
+      const resultado = await iniciarSesionServicio(
+        correo,
+        contrasena
+      );
+
+      /*
+       * Cargamos aquí el perfil antes de permitir que Login
+       * redirija. El listener de Supabase puede dispararse al
+       * mismo tiempo, pero ambos dejarán el mismo estado final.
+       */
+      setSesion(resultado.session);
+      await cargarPerfil(resultado.user);
+
+      return resultado;
+    } catch (err) {
+      setSesion(null);
+      setPerfil(null);
+      establecerTiendaActiva("");
+      setError(err.message);
+      throw err;
+    } finally {
+      setCargando(false);
+    }
   }
 
   async function cerrarSesion() {
-    await cerrarSesionServicio();
-    setSesion(null);
-    setPerfil(null);
+    setCargando(true);
+
+    try {
+      await cerrarSesionServicio();
+    } finally {
+      setSesion(null);
+      setPerfil(null);
+      establecerTiendaActiva("");
+      setCargando(false);
+    }
   }
 
   function tienePermiso(codigo) {
     if (!perfil) return false;
     if (perfil.es_superadmin) return true;
+
     return (perfil.permisos ?? []).includes(codigo);
   }
+
+  const autenticado =
+    Boolean(sesion?.user) && Boolean(perfil);
 
   const valor = useMemo(
     () => ({
       sesion,
       usuario: sesion?.user ?? null,
       perfil,
+      autenticado,
       cargando,
       error,
       iniciarSesion,
@@ -128,7 +181,14 @@ export function AuthProvider({ children }) {
           : Promise.resolve(null),
       tienePermiso,
     }),
-    [sesion, perfil, cargando, error, cargarPerfil]
+    [
+      sesion,
+      perfil,
+      autenticado,
+      cargando,
+      error,
+      cargarPerfil,
+    ]
   );
 
   return (
@@ -140,10 +200,12 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const contexto = useContext(AuthContext);
+
   if (!contexto) {
     throw new Error(
       "useAuth debe utilizarse dentro de AuthProvider."
     );
   }
+
   return contexto;
 }

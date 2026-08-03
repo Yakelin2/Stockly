@@ -1,6 +1,6 @@
 // src/services/reportesService.js
 
-import { supabase, TIENDA_ID } from "./supabase.js";
+import { supabase, obtenerTiendaActiva } from "./supabase.js";
 
 const REPORTE_VACIO = {
   kpis: {
@@ -40,16 +40,10 @@ export async function obtenerReportes({
   desde,
   hasta,
 }) {
-  if (!TIENDA_ID) {
-    throw new Error(
-      "No se encontró VITE_TIENDA_ID en .env.local."
-    );
-  }
-
   const { data, error } = await supabase.rpc(
     "obtener_reportes_stockly",
     {
-      p_tienda_id: TIENDA_ID,
+      p_tienda_id: obtenerTiendaActiva(),
       p_desde: desde,
       p_hasta: hasta,
     }
