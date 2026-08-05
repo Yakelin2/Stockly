@@ -25,9 +25,18 @@ function Login() {
   const [error, setError] = useState("");
 
   if (autenticado && !cargandoAuth) {
+    const rutaAnterior = location.state?.desde;
+
+    const destinoSeguro =
+      rutaAnterior &&
+      rutaAnterior !== "/sin-acceso" &&
+      rutaAnterior !== "/login"
+        ? rutaAnterior
+        : "/";
+
     return (
       <Navigate
-        to={location.state?.desde || "/"}
+        to={destinoSeguro}
         replace
       />
     );

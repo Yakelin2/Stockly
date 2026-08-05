@@ -76,3 +76,32 @@ img {
 *::-webkit-scrollbar-track {
   background: transparent;
 }
+
+
+.input-base {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 0.7rem 0.85rem;
+  color: #0f172a;
+  outline: none;
+}
+.input-base:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.boton-primario {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  background: #2563eb;
+  padding: 0.7rem 1rem;
+  font-weight: 900;
+  color: white;
+  transition: background 0.2s ease;
+}
+.boton-primario:hover { background: #1d4ed8; }
+.boton-primario:disabled { opacity: 0.55; cursor: not-allowed; }
