@@ -1,16 +1,65 @@
-# React + Vite
+# Stockly
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Sistema web de inventario y punto de venta para tiendas de abarrotes.
 
-Currently, two official plugins are available:
+Stockly busca ayudar a pequeños negocios a controlar sus productos, ventas, compras, inversión, ganancias y pérdidas desde una computadora, tablet o teléfono celular.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Estado del proyecto
 
-## React Compiler
+Actualmente el proyecto se encuentra en desarrollo.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Versión actual: `v0.1.0`
 
-## Expanding the ESLint configuration
+## Funcionalidades implementadas
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- Dashboard principal.
+- Navegación entre módulos.
+- Registro de productos.
+- Consulta de productos.
+- Búsqueda por nombre, categoría o código de barras.
+- Eliminación de productos.
+- Cálculo del valor del inventario.
+- Detección de productos agotados.
+- Detección de inventario bajo.
+- Conexión con Supabase y PostgreSQL.
+- Separación inicial de productos por tienda.
+
+## Próximas funcionalidades
+
+- Edición de productos.
+- Categorías administrables.
+- Imágenes de productos.
+- Escaneo de códigos de barras.
+- Registro de ventas.
+- Descuento automático del inventario.
+- Registro de compras y proveedores.
+- Control de pérdidas y mermas.
+- Inicio de sesión.
+- Usuarios y permisos.
+- Varias tiendas y sucursales.
+- Reportes en PDF y Excel.
+- Aplicación web instalable.
+- Recomendaciones inteligentes de inventario.
+
+## Tecnologías utilizadas
+
+- React
+- Vite
+- Tailwind CSS
+- React Router
+- Supabase
+- PostgreSQL
+- Lucide React
+- Git y GitHub
+
+## Estructura general
+
+```text
+src/
+├── components/
+├── layouts/
+├── pages/
+├── services/
+├── App.jsx
+├── main.jsx
+└── index.css
