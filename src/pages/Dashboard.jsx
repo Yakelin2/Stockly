@@ -255,11 +255,11 @@ function Dashboard() {
           </p>
 
           <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">
-            Buenos días
+            Panel de control
           </h1>
 
           <p className="mt-1 text-sm text-slate-500">
-            Este es el estado actual de tu tienda.
+            Consulta el estado actual de tu negocio.
           </p>
         </div>
 

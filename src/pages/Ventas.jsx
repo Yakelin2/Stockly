@@ -7,6 +7,7 @@ import {
   PackageSearch,
   Plus,
   RefreshCw,
+  History,
   Search,
   ShoppingCart,
   Trash2,
@@ -14,7 +15,13 @@ import {
 
 import EscanerCamara from "../components/productos/EscanerCamara";
 import { obtenerProductos } from "../services/productosService";
-import { registrarVenta } from "../services/ventasService.js";
+import {
+  registrarVenta,
+  obtenerDetalleVenta,
+  obtenerHistorialVentas,
+} from "../services/ventasService.js";
+import HistorialTickets from "../components/ventas/HistorialTickets.jsx";
+import TicketVenta from "../components/ventas/TicketVenta.jsx";
 
 
 function codigosProducto(producto) {
@@ -46,6 +53,13 @@ function Ventas() {
 
   const [procesandoVenta, setProcesandoVenta] =
     useState(false);
+
+  const [historialAbierto, setHistorialAbierto] =
+    useState(false);
+  const [ticketAbierto, setTicketAbierto] =
+    useState(false);
+  const [datosTicket, setDatosTicket] =
+    useState(null);
 
   useEffect(() => {
     cargarProductos();
@@ -361,6 +375,43 @@ function Ventas() {
     setBusqueda("");
   }
 
+  async function abrirTicketHistorico(ventaId) {
+    limpiarMensajes();
+
+    try {
+      const [ventas, detalle] = await Promise.all([
+        obtenerHistorialVentas(),
+        obtenerDetalleVenta(ventaId),
+      ]);
+
+      const venta = ventas.find(
+        (item) => String(item.id) === String(ventaId)
+      );
+
+      if (!venta) {
+        throw new Error(
+          "No fue posible localizar la venta seleccionada."
+        );
+      }
+
+      setDatosTicket({
+        venta,
+        detalle,
+        configuracion: null,
+      });
+      setTicketAbierto(true);
+    } catch (errorTicket) {
+      console.error(
+        "Error al cargar el ticket histórico:",
+        errorTicket
+      );
+      setError(
+        errorTicket.message ||
+          "No fue posible cargar el ticket."
+      );
+    }
+  }
+
   async function cobrarVenta() {
     limpiarMensajes();
 
@@ -396,14 +447,60 @@ function Ventas() {
       return;
     }
 
+    const carritoVendido = carrito.map((producto) => ({
+      ...producto,
+    }));
+    const totalVendido = total;
+    const metodoPagoVenta = metodoPago;
+    const montoRecibidoVenta =
+      metodoPagoVenta === "efectivo"
+        ? Number(montoRecibido)
+        : null;
+    const cambioVenta =
+      metodoPagoVenta === "efectivo"
+        ? Math.max(
+            0,
+            Number(montoRecibidoVenta) -
+              Number(totalVendido)
+          )
+        : 0;
+
     try {
       setProcesandoVenta(true);
 
       const ventaId = await registrarVenta({
-        carrito,
-        metodoPago,
-        montoRecibido,
+        carrito: carritoVendido,
+        metodoPago: metodoPagoVenta,
+        montoRecibido: montoRecibidoVenta,
       });
+
+      const detalleTicket = carritoVendido.map(
+        (producto) => ({
+          id: `${ventaId}-${producto.id}`,
+          producto_id: producto.id,
+          nombre_producto: producto.nombre,
+          cantidad: Number(producto.cantidad),
+          precio_unitario: Number(producto.venta),
+          subtotal:
+            Number(producto.venta) *
+            Number(producto.cantidad),
+        })
+      );
+
+      setDatosTicket({
+        venta: {
+          id: ventaId,
+          folio: ventaId,
+          creado_en: new Date().toISOString(),
+          metodo_pago: metodoPagoVenta,
+          total: totalVendido,
+          monto_recibido: montoRecibidoVenta,
+          cambio: cambioVenta,
+        },
+        detalle: detalleTicket,
+        configuracion: null,
+      });
+      setTicketAbierto(true);
 
       setCarrito([]);
       setBusqueda("");
@@ -424,11 +521,6 @@ function Ventas() {
         `No se pudo registrar la venta: ${errorDeVenta.message}`
       );
 
-      /*
-       * Recargamos el inventario porque el servidor es la
-       * fuente real de stock. Así evitamos que la pantalla
-       * conserve cantidades desactualizadas.
-       */
       await cargarProductos();
     } finally {
       setProcesandoVenta(false);
@@ -452,18 +544,29 @@ function Ventas() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={cargarProductos}
-          disabled={cargando}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <RefreshCw
-            size={18}
-            className={cargando ? "animate-spin" : ""}
-          />
-          Actualizar inventario
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => setHistorialAbierto(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-50 hover:shadow-md"
+          >
+            <History size={18} />
+            Historial
+          </button>
+
+          <button
+            type="button"
+            onClick={cargarProductos}
+            disabled={cargando}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <RefreshCw
+              size={18}
+              className={cargando ? "animate-spin" : ""}
+            />
+            Actualizar inventario
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -927,6 +1030,21 @@ function Ventas() {
         abierto={mostrarCamara}
         onCerrar={cerrarCamara}
         onDetectar={detectarCodigoDesdeCamara}
+      />
+
+      <HistorialTickets
+        abierto={historialAbierto}
+        onCerrar={() => setHistorialAbierto(false)}
+        onTicket={abrirTicketHistorico}
+      />
+
+      <TicketVenta
+        abierto={ticketAbierto}
+        datos={datosTicket}
+        onCerrar={() => {
+          setTicketAbierto(false);
+          setDatosTicket(null);
+        }}
       />
     </section>
   );
