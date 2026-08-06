@@ -22,6 +22,8 @@ import {
 } from "../services/ventasService.js";
 import HistorialTickets from "../components/ventas/HistorialTickets.jsx";
 import TicketVenta from "../components/ventas/TicketVenta.jsx";
+import ModalConfirmarVenta from "../components/ventas/ModalConfirmarVenta.jsx";
+import ModalVaciarCarrito from "../components/ventas/ModalVaciarCarrito.jsx";
 
 
 function codigosProducto(producto) {
@@ -60,6 +62,10 @@ function Ventas() {
     useState(false);
   const [datosTicket, setDatosTicket] =
     useState(null);
+  const [confirmacionVentaAbierta, setConfirmacionVentaAbierta] =
+    useState(false);
+  const [confirmacionVaciadoAbierta, setConfirmacionVaciadoAbierta] =
+    useState(false);
 
   useEffect(() => {
     cargarProductos();
@@ -297,21 +303,20 @@ function Ventas() {
     );
   }
 
-  function cancelarVenta() {
-    if (carrito.length === 0) {
+  function solicitarVaciarCarrito() {
+    if (carrito.length === 0 || procesandoVenta) {
       return;
     }
 
-    const confirmar = window.confirm(
-      "¿Deseas cancelar la venta y vaciar el carrito?"
-    );
+    limpiarMensajes();
+    setConfirmacionVaciadoAbierta(true);
+  }
 
-    if (!confirmar) {
-      return;
-    }
-
+  function confirmarVaciarCarrito() {
+    setConfirmacionVaciadoAbierta(false);
     setCarrito([]);
     setBusqueda("");
+    setMontoRecibido("");
     limpiarMensajes();
   }
 
@@ -412,7 +417,26 @@ function Ventas() {
     }
   }
 
-  async function cobrarVenta() {
+  function solicitarConfirmacionVenta() {
+    limpiarMensajes();
+
+    if (carrito.length === 0) {
+      setError("Agrega al menos un producto antes de cobrar.");
+      return;
+    }
+
+    if (
+      metodoPago === "efectivo" &&
+      (!montoRecibido || Number(montoRecibido) < total)
+    ) {
+      setError("El monto recibido debe ser igual o mayor al total.");
+      return;
+    }
+
+    setConfirmacionVentaAbierta(true);
+  }
+
+  async function ejecutarVenta() {
     limpiarMensajes();
 
     if (carrito.length === 0) {
@@ -433,19 +457,7 @@ function Ventas() {
       return;
     }
 
-    const confirmar = window.confirm(
-      `¿Confirmar venta por ${total.toLocaleString(
-        "es-MX",
-        {
-          style: "currency",
-          currency: "MXN",
-        }
-      )}?`
-    );
-
-    if (!confirmar) {
-      return;
-    }
+    setConfirmacionVentaAbierta(false);
 
     const carritoVendido = carrito.map((producto) => ({
       ...producto,
@@ -786,7 +798,7 @@ function Ventas() {
 
             <button
               type="button"
-              onClick={cancelarVenta}
+              onClick={solicitarVaciarCarrito}
               disabled={carrito.length === 0 || procesandoVenta}
               className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -988,7 +1000,7 @@ function Ventas() {
             <div className="mt-4 grid gap-3 sm:grid-cols-[0.8fr_1.2fr]">
               <button
                 type="button"
-                onClick={cancelarVenta}
+                onClick={solicitarVaciarCarrito}
                 disabled={carrito.length === 0 || procesandoVenta}
                 className="rounded-xl border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -997,7 +1009,7 @@ function Ventas() {
 
               <button
                 type="button"
-                onClick={cobrarVenta}
+                onClick={solicitarConfirmacionVenta}
                 disabled={
                   carrito.length === 0 ||
                   procesandoVenta ||
@@ -1036,6 +1048,26 @@ function Ventas() {
         abierto={historialAbierto}
         onCerrar={() => setHistorialAbierto(false)}
         onTicket={abrirTicketHistorico}
+      />
+
+      <ModalConfirmarVenta
+        abierto={confirmacionVentaAbierta}
+        total={total}
+        metodoPago={metodoPago}
+        montoRecibido={montoRecibido}
+        cambio={cambio}
+        cantidadArticulos={cantidadArticulos}
+        procesando={procesandoVenta}
+        onCancelar={() => setConfirmacionVentaAbierta(false)}
+        onConfirmar={ejecutarVenta}
+      />
+
+      <ModalVaciarCarrito
+        abierto={confirmacionVaciadoAbierta}
+        cantidadProductos={carrito.length}
+        cantidadArticulos={cantidadArticulos}
+        onCancelar={() => setConfirmacionVaciadoAbierta(false)}
+        onConfirmar={confirmarVaciarCarrito}
       />
 
       <TicketVenta
