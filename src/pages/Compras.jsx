@@ -5,13 +5,18 @@ import { Html5Qrcode } from "html5-qrcode";
 import {
   Barcode,
   CalendarClock,
+  ChevronDown,
   Camera,
   CheckCircle2,
   History,
   Loader2,
   Minus,
+  MoreVertical,
   PackagePlus,
+  ShoppingCart,
   Plus,
+  Link2,
+  AlertTriangle,
   Save,
   Search,
   Trash2,
@@ -19,7 +24,10 @@ import {
   X,
 } from "lucide-react";
 import {
+  asociarCodigoProducto,
+  buscarProductoPorCodigo,
   crearProveedor,
+  desactivarProductoCompra,
   obtenerProductosCompra,
   obtenerProveedores,
   registrarCompra,
@@ -61,9 +69,8 @@ function moneda(valor) {
 function textoProducto(producto) {
   return [
     producto.nombre,
-    producto.codigo_barras,
-    producto.codigo,
     producto.marca,
+    ...codigosProducto(producto),
   ]
     .filter(Boolean)
     .join(" ")
@@ -86,6 +93,28 @@ function imagenProducto(producto) {
     producto.imagen ??
     producto.url_imagen ??
     null
+  );
+}
+
+function codigosProducto(producto) {
+  const alternativos = Array.isArray(producto.codigos_barras)
+    ? producto.codigos_barras
+    : Array.isArray(producto.codigos_barras_productos)
+      ? producto.codigos_barras_productos.map((item) =>
+          typeof item === "string" ? item : item.codigo_barras
+        )
+      : [];
+
+  return Array.from(
+    new Set(
+      [
+        producto.codigo_barras,
+        producto.codigo,
+        ...alternativos,
+      ]
+        .map((codigo) => String(codigo ?? "").trim())
+        .filter(Boolean)
+    )
   );
 }
 
@@ -113,6 +142,18 @@ function Compras() {
   const [proveedorId, setProveedorId] = useState("");
   const [numeroFactura, setNumeroFactura] = useState("");
   const [observaciones, setObservaciones] = useState("");
+  const [detallesAbiertos, setDetallesAbiertos] = useState(false);
+  const [archivoImagenProducto, setArchivoImagenProducto] = useState(null);
+
+  const [menuProductoId, setMenuProductoId] = useState(null);
+  const [modalCodigo, setModalCodigo] = useState(false);
+  const [codigoPendiente, setCodigoPendiente] = useState("");
+  const [productoAsociacionId, setProductoAsociacionId] = useState("");
+  const [busquedaAsociacion, setBusquedaAsociacion] = useState("");
+  const [agregarTrasAsociar, setAgregarTrasAsociar] = useState(false);
+  const [guardandoCodigo, setGuardandoCodigo] = useState(false);
+  const [productoEliminar, setProductoEliminar] = useState(null);
+  const [eliminandoProducto, setEliminandoProducto] = useState(false);
 
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -177,6 +218,16 @@ function Compras() {
       .slice(0, 30);
   }, [busqueda, productos]);
 
+  const productosAsociacion = useMemo(() => {
+    const termino = busquedaAsociacion.trim().toLowerCase();
+
+    return productos
+      .filter((producto) =>
+        !termino || textoProducto(producto).includes(termino)
+      )
+      .slice(0, 8);
+  }, [busquedaAsociacion, productos]);
+
   const total = useMemo(
     () =>
       carrito.reduce(
@@ -236,34 +287,65 @@ function Compras() {
     window.setTimeout(() => busquedaRef.current?.focus(), 0);
   }, [limpiarMensajes]);
 
+  const abrirModalCodigo = useCallback(
+    ({ codigo = "", productoId = "", agregar = false } = {}) => {
+      limpiarMensajes();
+      setCodigoPendiente(String(codigo ?? "").trim());
+      setProductoAsociacionId(productoId || "");
+      setBusquedaAsociacion("");
+      setAgregarTrasAsociar(Boolean(agregar));
+      setMenuProductoId(null);
+      setModalCodigo(true);
+    },
+    [limpiarMensajes]
+  );
+
   const procesarCodigo = useCallback(
-    (codigo) => {
+    async (codigo) => {
       const limpio = String(codigo ?? "").trim();
 
       if (!limpio) return false;
 
-      const producto = productos.find(
-        (item) =>
-          String(item.codigo_barras ?? item.codigo ?? "").trim() === limpio
+      let producto = productos.find((item) =>
+        codigosProducto(item).includes(limpio)
       );
 
       if (!producto) {
-        setError("");
-        setMensaje("");
-        setBusqueda(limpio);
-        setNuevoProducto({
-          ...PRODUCTO_NUEVO_INICIAL,
-          codigo: limpio,
-        });
-        setModalProducto(true);
-        return false;
+        try {
+          producto = await buscarProductoPorCodigo(limpio);
+        } catch (err) {
+          console.error(err);
+          setError(
+            err.message ||
+              "No fue posible buscar el código de barras."
+          );
+          return false;
+        }
       }
+
+      if (!producto) {
+        abrirModalCodigo({
+          codigo: limpio,
+          agregar: true,
+        });
+        return true;
+      }
+
+      setProductos((actuales) =>
+        actuales.some((item) => item.id === producto.id)
+          ? actuales
+          : [producto, ...actuales]
+      );
 
       agregarProducto(producto);
       setMensaje(`${producto.nombre} agregado a la compra.`);
       return true;
     },
-    [agregarProducto, productos]
+    [
+      agregarProducto,
+      abrirModalCodigo,
+      productos,
+    ]
   );
 
   useEffect(() => {
@@ -289,7 +371,7 @@ function Compras() {
       if (evento.key === "Enter") {
         if (bufferUsbRef.current.length >= 4) {
           evento.preventDefault();
-          procesarCodigo(bufferUsbRef.current);
+          void procesarCodigo(bufferUsbRef.current);
         }
         bufferUsbRef.current = "";
         return;
@@ -305,7 +387,7 @@ function Compras() {
         bufferUsbRef.current = "";
 
         if (codigo.length >= 6) {
-          procesarCodigo(codigo);
+          void procesarCodigo(codigo);
         }
       }, 90);
     };
@@ -404,6 +486,7 @@ function Compras() {
     });
     setNombreNuevaCategoria("");
     setMostrarNuevaCategoria(false);
+    setArchivoImagenProducto(null);
     setModalProducto(true);
   }
 
@@ -416,6 +499,7 @@ function Compras() {
     setNuevoProducto(PRODUCTO_NUEVO_INICIAL);
     setNombreNuevaCategoria("");
     setMostrarNuevaCategoria(false);
+    setArchivoImagenProducto(null);
   }
 
   function cambiarNuevoProducto(evento) {
@@ -565,7 +649,7 @@ function Compras() {
           minimo: String(stockMinimo),
           imagen: "",
         },
-        null
+        archivoImagenProducto
       );
 
       setProductos((actuales) => [
@@ -594,6 +678,7 @@ function Compras() {
       setNuevoProducto(PRODUCTO_NUEVO_INICIAL);
       setMostrarNuevaCategoria(false);
       setNombreNuevaCategoria("");
+      setArchivoImagenProducto(null);
 
       setMensaje(
         `${productoCreado.nombre} fue creado y agregado con sus datos de compra.`
@@ -606,6 +691,119 @@ function Compras() {
       );
     } finally {
       setGuardandoProducto(false);
+    }
+  }
+
+  function cerrarModalCodigo() {
+    if (guardandoCodigo) return;
+
+    setModalCodigo(false);
+    setCodigoPendiente("");
+    setProductoAsociacionId("");
+    setBusquedaAsociacion("");
+    setAgregarTrasAsociar(false);
+  }
+
+  async function guardarAsociacionCodigo(evento) {
+    evento.preventDefault();
+    limpiarMensajes();
+
+    const codigo = codigoPendiente.trim();
+    const producto = productos.find(
+      (item) => item.id === productoAsociacionId
+    );
+
+    if (!codigo) {
+      setError("Escribe o escanea el código de barras.");
+      return;
+    }
+
+    if (!producto) {
+      setError("Selecciona el producto al que pertenece el código.");
+      return;
+    }
+
+    try {
+      setGuardandoCodigo(true);
+
+      await asociarCodigoProducto({
+        productoId: producto.id,
+        codigo,
+      });
+
+      const actualizado = {
+        ...producto,
+        codigos_barras: Array.from(
+          new Set([...codigosProducto(producto), codigo])
+        ),
+      };
+
+      setProductos((actuales) =>
+        actuales.map((item) =>
+          item.id === actualizado.id ? actualizado : item
+        )
+      );
+
+      if (agregarTrasAsociar) {
+        agregarProducto(actualizado);
+      }
+
+      setModalCodigo(false);
+      setCodigoPendiente("");
+      setProductoAsociacionId("");
+      setBusquedaAsociacion("");
+      setAgregarTrasAsociar(false);
+      setMensaje(
+        `${codigo} quedó asociado a ${producto.nombre}.`
+      );
+    } catch (err) {
+      console.error(err);
+      setError(
+        err.message ||
+          "No fue posible asociar el código de barras."
+      );
+    } finally {
+      setGuardandoCodigo(false);
+    }
+  }
+
+  function crearProductoConCodigoPendiente() {
+    const codigo = codigoPendiente.trim();
+    cerrarModalCodigo();
+    abrirModalProducto({ codigo });
+  }
+
+  async function eliminarProductoCatalogo() {
+    if (!productoEliminar) return;
+
+    try {
+      setEliminandoProducto(true);
+      limpiarMensajes();
+
+      await desactivarProductoCompra(productoEliminar.id);
+
+      setProductos((actuales) =>
+        actuales.filter((item) => item.id !== productoEliminar.id)
+      );
+      setCarrito((actuales) =>
+        actuales.filter(
+          (item) => item.productoId !== productoEliminar.id
+        )
+      );
+
+      setMensaje(
+        `${productoEliminar.nombre} se quitó del catálogo activo. El historial se conserva.`
+      );
+      setProductoEliminar(null);
+      setMenuProductoId(null);
+    } catch (err) {
+      console.error(err);
+      setError(
+        err.message ||
+          "No fue posible eliminar el producto."
+      );
+    } finally {
+      setEliminandoProducto(false);
     }
   }
 
@@ -698,7 +896,7 @@ function Compras() {
           aspectRatio: 1.777,
         },
         async (codigo) => {
-          const encontrado = procesarCodigo(codigo);
+          const encontrado = await procesarCodigo(codigo);
 
           if (encontrado) {
             await cerrarCamara();
@@ -778,7 +976,7 @@ function Compras() {
     return (
       <section className="flex min-h-[420px] items-center justify-center">
         <div className="text-center">
-          <Loader2 className="mx-auto h-9 w-9 animate-spin text-emerald-600" />
+          <Loader2 className="mx-auto h-9 w-9 animate-spin text-blue-600" />
           <p className="mt-3 text-sm text-slate-500">
             Cargando productos y proveedores...
           </p>
@@ -788,17 +986,17 @@ function Compras() {
   }
 
   return (
-    <section className="space-y-6 pb-10">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <section className="space-y-5 pb-10">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wider text-emerald-600">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">
             Inventario
           </p>
-          <h1 className="text-3xl font-bold text-slate-900">
-            Registrar compra
+          <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+            Compras
           </h1>
-          <p className="mt-1 text-slate-500">
-            Recibe mercancía y aumenta el stock automáticamente.
+          <p className="mt-1 text-sm text-slate-500">
+            Registra tus compras y mantén tu inventario al día.
           </p>
         </div>
 
@@ -806,34 +1004,25 @@ function Compras() {
           <button
             type="button"
             onClick={() => abrirModalProducto()}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
           >
-            <PackagePlus className="h-5 w-5" />
-            Nuevo producto
+            <Plus className="h-4 w-4" />
+            Producto nuevo
           </button>
 
           <button
             type="button"
             onClick={() => setVista("historial")}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
           >
-            <History className="h-5 w-5" />
-            Ver historial
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setModalProveedor(true)}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white transition hover:bg-slate-800"
-          >
-            <Truck className="h-5 w-5" />
-            Nuevo proveedor
+            <History className="h-4 w-4" />
+            Historial
           </button>
         </div>
       </header>
 
       {mensaje && (
-        <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+        <div className="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-blue-800">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
           <p>{mensaje}</p>
         </div>
@@ -853,10 +1042,24 @@ function Compras() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(380px,0.8fr)]">
-        <div className="space-y-5">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_500px]">
+        <div className="min-w-0 space-y-5">
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                <ShoppingCart className="h-6 w-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-slate-950">
+                  Registrar compra
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Busca productos existentes o crea uno nuevo para agregarlo a tu compra.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <div className="relative flex-1">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                 <input
@@ -865,361 +1068,462 @@ function Compras() {
                   onChange={(evento) => setBusqueda(evento.target.value)}
                   onKeyDown={(evento) => {
                     if (evento.key === "Enter" && busqueda.trim()) {
-                      const exacto = productos.find(
-                        (producto) =>
-                          String(
-                            producto.codigo_barras ??
-                              producto.codigo ??
-                              ""
-                          ).trim() === busqueda.trim()
-                      );
-
-                      if (exacto) {
-                        evento.preventDefault();
-                        agregarProducto(exacto);
-                      }
+                      evento.preventDefault();
+                      void procesarCodigo(busqueda.trim());
                     }
                   }}
-                  placeholder="Buscar por nombre o escanear código..."
-                  className="w-full rounded-xl border border-slate-200 py-3 pl-12 pr-4 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  placeholder="Buscar por nombre o escanear código de barras..."
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-white !pl-12 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 />
               </div>
 
               <button
                 type="button"
                 onClick={abrirCamara}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-black text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
               >
-                <Camera className="h-5 w-5" />
+                <Barcode className="h-5 w-5" />
                 Escanear
               </button>
-            </div>
-
-            <p className="mt-2 text-xs text-slate-400">
-              El lector USB funciona automáticamente, incluso sin presionar Enter.
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {productosFiltrados.map((producto) => {
-              const imagen = imagenProducto(producto);
-              const codigo =
-                producto.codigo_barras ?? producto.codigo ?? "Sin código";
-
-              return (
-                <button
-                  type="button"
-                  key={producto.id}
-                  onClick={() => agregarProducto(producto)}
-                  className="group flex min-h-28 items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"
-                >
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100">
-                    {imagen ? (
-                      <img
-                        src={imagen}
-                        alt={producto.nombre}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <PackagePlus className="h-7 w-7 text-slate-400" />
-                    )}
-                  </div>
-
-                  <div className="min-w-0">
-                    <p className="line-clamp-2 font-semibold text-slate-800 group-hover:text-emerald-700">
-                      {producto.nombre}
-                    </p>
-                    <p className="mt-1 truncate text-xs text-slate-400">
-                      {codigo}
-                    </p>
-                    <p className="mt-1 text-sm font-bold text-slate-700">
-                      Costo: {moneda(costoProducto(producto))}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Stock actual: {Number(producto.stock) || 0}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {productosFiltrados.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-12 text-center">
-              <Search className="mx-auto h-9 w-9 text-slate-300" />
-
-              <p className="mt-3 font-medium text-slate-600">
-                No encontramos productos.
-              </p>
-
-              <p className="mt-1 text-sm text-slate-400">
-                Puedes registrarlo sin salir de esta compra.
-              </p>
 
               <button
                 type="button"
-                onClick={() =>
-                  abrirModalProducto({
-                    nombre: busqueda.trim(),
-                    codigo: /^\d{4,}$/.test(
-                      busqueda.trim()
-                    )
-                      ? busqueda.trim()
-                      : "",
-                  })
-                }
-                className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white transition hover:bg-emerald-700"
+                onClick={() => abrirModalProducto()}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
               >
-                <PackagePlus className="h-5 w-5" />
-                Crear
-                {busqueda.trim()
-                  ? ` "${busqueda.trim()}"`
-                  : " producto"}
+                <Plus className="h-5 w-5" />
+                Producto nuevo
               </button>
             </div>
-          )}
-        </div>
-
-        <aside className="h-fit rounded-2xl border border-slate-200 bg-white shadow-sm xl:sticky xl:top-5">
-          <div className="border-b border-slate-100 p-5">
-            <h2 className="text-xl font-bold text-slate-900">
-              Resumen de compra
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {carrito.length === 0
-                ? "No hay productos seleccionados"
-                : carrito.length === 1
-                  ? `${carrito[0].nombre} · ${
-                      Number(carrito[0].cantidad) || 0
-                    } unidades`
-                  : `${carrito.length} productos · ${totalUnidades} unidades`}
-            </p>
           </div>
 
-          <div className="space-y-4 p-5">
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-semibold text-slate-700">
-                Proveedor
-              </span>
-              <select
-                value={proveedorId}
-                onChange={(evento) => setProveedorId(evento.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-              >
-                <option value="">Sin proveedor</option>
-                {proveedores.map((proveedor) => (
-                  <option key={proveedor.id} value={proveedor.id}>
-                    {proveedor.nombre}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-semibold text-slate-700">
-                Número de factura
-              </span>
-              <input
-                value={numeroFactura}
-                onChange={(evento) => setNumeroFactura(evento.target.value)}
-                placeholder="Opcional"
-                className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-              />
-            </label>
-          </div>
-
-          <div className="max-h-[420px] space-y-3 overflow-y-auto border-y border-slate-100 p-5">
-            {carrito.length === 0 ? (
-              <div className="py-10 text-center">
-                <PackagePlus className="mx-auto h-10 w-10 text-slate-300" />
-                <p className="mt-3 font-medium text-slate-600">
-                  La compra está vacía
-                </p>
-                <p className="mt-1 text-sm text-slate-400">
-                  Selecciona o escanea un producto.
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-slate-950">
+                  Productos del inventario
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {productosFiltrados.length} productos mostrados
                 </p>
               </div>
-            ) : (
-              carrito.map((item) => (
-                <article
-                  key={item.productoId}
-                  className="rounded-xl border border-slate-200 p-3"
+              {busqueda && (
+                <button
+                  type="button"
+                  onClick={() => setBusqueda("")}
+                  className="text-sm font-bold text-blue-600 hover:text-blue-700"
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100">
-                      {item.imagen ? (
-                        <img
-                          src={item.imagen}
-                          alt={item.nombre}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <PackagePlus className="h-5 w-5 text-slate-400" />
+                  Ver todos
+                </button>
+              )}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {productosFiltrados.map((producto) => {
+                const imagen = imagenProducto(producto);
+                const codigo =
+                  producto.codigo_barras ?? producto.codigo ?? "Sin código";
+                const agregado = carrito.some(
+                  (item) => item.productoId === producto.id
+                );
+
+                return (
+                  <article
+                    key={producto.id}
+                    className="relative flex min-h-[190px] flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+                  >
+                    <div className="absolute right-2 top-2 z-10">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMenuProductoId((actual) =>
+                            actual === producto.id ? null : producto.id
+                          )
+                        }
+                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/90 text-slate-400 shadow-sm transition hover:bg-slate-100 hover:text-slate-700"
+                        aria-label={`Opciones de ${producto.nombre}`}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+
+                      {menuProductoId === producto.id && (
+                        <div className="absolute right-0 top-9 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              abrirModalCodigo({
+                                productoId: producto.id,
+                              })
+                            }
+                            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"
+                          >
+                            <Link2 className="h-4 w-4 text-blue-600" />
+                            Asociar otro código
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProductoEliminar(producto);
+                              setMenuProductoId(null);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-bold text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Quitar del catálogo
+                          </button>
+                        </div>
                       )}
                     </div>
 
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-slate-800">
-                        {item.nombre}
-                      </p>
-                      <p className="truncate text-xs text-slate-400">
-                        {item.codigoBarras || "Sin código"}
-                      </p>
+                    <div className="flex min-w-0 items-start gap-3 pr-7">
+                      <div className="flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-50">
+                        {imagen ? (
+                          <img
+                            src={imagen}
+                            alt={producto.nombre}
+                            className="h-full w-full object-contain"
+                          />
+                        ) : (
+                          <PackagePlus className="h-7 w-7 text-slate-300" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 font-black leading-5 text-slate-900">
+                          {producto.nombre}
+                        </p>
+                        <div className="mt-1 flex items-center gap-2">
+                          <p className="truncate text-xs text-slate-400">
+                            {codigo}
+                          </p>
+                          {codigosProducto(producto).length > 1 && (
+                            <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700">
+                              +{codigosProducto(producto).length - 1}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">
+                          Stock actual: {Number(producto.stock) || 0}
+                        </p>
+                        <p className="mt-1 text-sm font-black text-slate-900">
+                          Costo: {moneda(costoProducto(producto))}
+                        </p>
+                      </div>
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => quitarProducto(item.productoId)}
-                      className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                      aria-label={`Quitar ${item.nombre}`}
+                      onClick={() => agregarProducto(producto)}
+                      className={`mt-auto inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border text-sm font-black transition ${
+                        agregado
+                          ? "border-blue-200 bg-blue-50 text-blue-700"
+                          : "border-slate-200 bg-white text-blue-600 hover:border-blue-300 hover:bg-blue-50"
+                      }`}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Plus className="h-4 w-4" />
+                      {agregado ? "Agregar otra unidad" : "Agregar"}
                     </button>
-                  </div>
+                  </article>
+                );
+              })}
+            </div>
 
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <span className="mb-1 block text-xs font-medium text-slate-500">
-                        Cantidad
-                      </span>
-                      <div className="flex overflow-hidden rounded-lg border border-slate-200">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            cambiarCantidad(
-                              item.productoId,
-                              Math.max(
-                                1,
-                                (Number(item.cantidad) || 1) - 1
-                              )
-                            )
-                          }
-                          className="px-2 hover:bg-slate-100"
-                        >
-                          <Minus className="h-4 w-4" />
-                        </button>
-                        <input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={item.cantidad}
-                          placeholder="Ej. 27"
-                          onFocus={(evento) =>
-                            evento.target.select()
-                          }
-                          onChange={(evento) =>
-                            cambiarCantidad(
-                              item.productoId,
-                              evento.target.value
-                            )
-                          }
-                          className="min-w-0 flex-1 border-x border-slate-200 px-2 py-2 text-center outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            cambiarCantidad(
-                              item.productoId,
-                              (Number(item.cantidad) || 0) + 1
-                            )
-                          }
-                          className="px-2 hover:bg-slate-100"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <label>
-                      <span className="mb-1 block text-xs font-medium text-slate-500">
-                        Costo unitario
-                      </span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.costoUnitario}
-                        placeholder="Ej. 27.00"
-                        onFocus={(evento) =>
-                          evento.target.select()
-                        }
-                        onChange={(evento) =>
-                          cambiarCosto(
-                            item.productoId,
-                            evento.target.value
-                          )
-                        }
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-right outline-none focus:border-emerald-500"
-                      />
-                    </label>
-
-                    <label className="sm:col-span-2">
-                      <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                        <CalendarClock className="h-3.5 w-3.5" />
-                        Fecha de caducidad
-                      </span>
-                      <input
-                        type="date"
-                        min={new Date().toISOString().slice(0, 10)}
-                        value={item.fechaCaducidad}
-                        onChange={(evento) =>
-                          cambiarFechaCaducidad(
-                            item.productoId,
-                            evento.target.value
-                          )
-                        }
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-emerald-500"
-                      />
-                      <p className="mt-1 text-[11px] text-slate-400">
-                        Déjalo vacío si el producto no caduca.
-                      </p>
-                    </label>
-                  </div>
-
-                  <div className="mt-3 flex justify-between text-sm">
-                    <span className="text-slate-500">Subtotal</span>
-                    <span className="font-bold text-slate-800">
-                      {moneda(item.cantidad * item.costoUnitario)}
-                    </span>
-                  </div>
-                </article>
-              ))
+            {productosFiltrados.length === 0 && (
+              <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-5 py-12 text-center">
+                <Search className="mx-auto h-9 w-9 text-slate-300" />
+                <p className="mt-3 font-black text-slate-700">
+                  No encontramos productos
+                </p>
+                <p className="mt-1 text-sm text-slate-400">
+                  Puedes crearlo sin salir de esta compra.
+                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    abrirModalProducto({
+                      nombre: busqueda.trim(),
+                      codigo: /^\d{4,}$/.test(busqueda.trim())
+                        ? busqueda.trim()
+                        : "",
+                    })
+                  }
+                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-black text-white transition hover:bg-blue-700"
+                >
+                  <PackagePlus className="h-5 w-5" />
+                  Crear producto
+                </button>
+              </div>
             )}
           </div>
 
-          <div className="space-y-4 p-5">
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-semibold text-slate-700">
-                Observaciones
-              </span>
-              <textarea
-                value={observaciones}
-                onChange={(evento) => setObservaciones(evento.target.value)}
-                rows="2"
-                placeholder="Opcional"
-                className="w-full resize-none rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-              />
-            </label>
+        </div>
 
-            <div className="flex items-end justify-between rounded-xl bg-slate-50 p-4">
+        <aside className="min-w-0 space-y-4 2xl:sticky 2xl:top-5 2xl:h-fit">
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 p-5">
+              <div className="flex items-center gap-3">
+                <ShoppingCart className="h-6 w-6 text-blue-600" />
+                <h2 className="text-xl font-black text-slate-950">
+                  Resumen de compra
+                </h2>
+              </div>
+              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">
+                {carrito.length} {carrito.length === 1 ? "producto" : "productos"}
+              </span>
+            </div>
+
+            <div className="max-h-[560px] divide-y divide-slate-100 overflow-y-auto px-5">
+              {carrito.length === 0 ? (
+                <div className="py-16 text-center">
+                  <PackagePlus className="mx-auto h-11 w-11 text-slate-200" />
+                  <p className="mt-4 font-black text-slate-700">
+                    La compra está vacía
+                  </p>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Selecciona o escanea un producto.
+                  </p>
+                </div>
+              ) : (
+                carrito.map((item) => (
+                  <article key={item.productoId} className="py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-16 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-50">
+                        {item.imagen ? (
+                          <img
+                            src={item.imagen}
+                            alt={item.nombre}
+                            className="h-full w-full object-contain"
+                          />
+                        ) : (
+                          <PackagePlus className="h-5 w-5 text-slate-300" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-black text-slate-900">
+                              {item.nombre}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              Costo: {moneda(item.costoUnitario)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-slate-400">Subtotal</p>
+                            <p className="font-black text-slate-900">
+                              {moneda(item.cantidad * item.costoUnitario)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <span className="mb-1 block text-xs font-bold text-slate-500">
+                              Cantidad
+                            </span>
+                            <div className="flex h-10 overflow-hidden rounded-xl border border-slate-200">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  cambiarCantidad(
+                                    item.productoId,
+                                    Math.max(1, (Number(item.cantidad) || 1) - 1)
+                                  )
+                                }
+                                className="flex w-10 items-center justify-center hover:bg-slate-50"
+                              >
+                                <Minus className="h-4 w-4" />
+                              </button>
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={item.cantidad}
+                                placeholder="0"
+                                onFocus={(evento) => evento.target.select()}
+                                onChange={(evento) =>
+                                  cambiarCantidad(item.productoId, evento.target.value)
+                                }
+                                className="min-w-0 flex-1 border-x border-slate-200 text-center text-sm font-bold outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  cambiarCantidad(
+                                    item.productoId,
+                                    (Number(item.cantidad) || 0) + 1
+                                  )
+                                }
+                                className="flex w-10 items-center justify-center hover:bg-slate-50"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <label>
+                            <span className="mb-1 block text-xs font-bold text-slate-500">
+                              Costo unitario
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.costoUnitario}
+                              placeholder="0.00"
+                              onFocus={(evento) => evento.target.select()}
+                              onChange={(evento) =>
+                                cambiarCosto(item.productoId, evento.target.value)
+                              }
+                              className="h-10 w-full rounded-xl border border-slate-200 px-3 text-right text-sm font-bold outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                            />
+                          </label>
+                        </div>
+
+                        <label className="mt-3 block">
+                          <span className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                            <CalendarClock className="h-3.5 w-3.5" />
+                            Fecha de caducidad
+                          </span>
+                          <input
+                            type="date"
+                            min={new Date().toISOString().slice(0, 10)}
+                            value={item.fechaCaducidad}
+                            onChange={(evento) =>
+                              cambiarFechaCaducidad(
+                                item.productoId,
+                                evento.target.value
+                              )
+                            }
+                            className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => quitarProducto(item.productoId)}
+                        className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                        aria-label={`Quitar ${item.nombre}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+
+            {carrito.length > 0 && (
+              <div className="border-t border-slate-100 p-4">
+                <button
+                  type="button"
+                  onClick={() => setCarrito([])}
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-50 text-sm font-black text-red-600 transition hover:bg-red-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Vaciar lista
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <button
+              type="button"
+              onClick={() => setDetallesAbiertos((actual) => !actual)}
+              className="flex w-full items-center justify-between p-5 text-left"
+            >
+              <span className="flex items-center gap-2 font-black text-slate-900">
+                <Truck className="h-5 w-5 text-blue-600" />
+                Detalles opcionales
+              </span>
+              <ChevronDown
+                className={`h-5 w-5 text-slate-400 transition ${detallesAbiertos ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {detallesAbiertos && (
+              <div className="grid gap-4 border-t border-slate-100 p-5 sm:grid-cols-2">
+                <label>
+                  <span className="mb-1.5 block text-xs font-black text-slate-600">
+                    Proveedor
+                  </span>
+                  <select
+                    value={proveedorId}
+                    onChange={(evento) => setProveedorId(evento.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  >
+                    <option value="">Sin proveedor</option>
+                    {proveedores.map((proveedor) => (
+                      <option key={proveedor.id} value={proveedor.id}>
+                        {proveedor.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setModalProveedor(true)}
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-black text-blue-600 hover:text-blue-700"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Agregar proveedor
+                  </button>
+                </label>
+
+                <label>
+                  <span className="mb-1.5 block text-xs font-black text-slate-600">
+                    Número de factura
+                  </span>
+                  <input
+                    value={numeroFactura}
+                    onChange={(evento) => setNumeroFactura(evento.target.value)}
+                    placeholder="Opcional"
+                    className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  />
+                </label>
+
+                <label className="sm:col-span-2">
+                  <span className="mb-1.5 block text-xs font-black text-slate-600">
+                    Observaciones
+                  </span>
+                  <textarea
+                    value={observaciones}
+                    onChange={(evento) => setObservaciones(evento.target.value)}
+                    rows="3"
+                    placeholder="Opcional"
+                    className="w-full resize-none rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 text-sm">
               <div>
-                <p className="text-sm text-slate-500">Total de compra</p>
-                <p className="text-2xl font-black text-slate-900">
+                <p className="text-slate-500">Total de productos</p>
+                <p className="mt-1 font-black text-slate-900">{carrito.length}</p>
+              </div>
+              <div>
+                <p className="text-slate-500">Total de unidades</p>
+                <p className="mt-1 font-black text-slate-900">{totalUnidades}</p>
+              </div>
+              <div className="col-span-2 flex items-end justify-between border-t border-slate-200 pt-3">
+                <p className="font-black text-slate-700">Total de compra</p>
+                <p className="text-3xl font-black tracking-tight text-slate-950">
                   {moneda(total)}
                 </p>
               </div>
-              <p className="text-right text-xs text-slate-400">
-                El stock aumentará
-                <br />
-                al confirmar
-              </p>
             </div>
 
             <button
               type="button"
               onClick={guardarCompra}
               disabled={guardando || carrito.length === 0}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3.5 font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="mt-4 inline-flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3.5 font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
             >
               {guardando ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -1228,6 +1532,10 @@ function Compras() {
               )}
               {guardando ? "Registrando..." : "Registrar compra"}
             </button>
+
+            <p className="mt-3 text-center text-xs text-slate-400">
+              El stock se actualizará al confirmar la compra.
+            </p>
           </div>
         </aside>
       </div>
@@ -1240,7 +1548,7 @@ function Compras() {
           >
             <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">
                   Catálogo
                 </p>
 
@@ -1279,7 +1587,7 @@ function Compras() {
                   onChange={cambiarNuevoProducto}
                   maxLength="120"
                   required
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 />
               </label>
 
@@ -1298,8 +1606,59 @@ function Compras() {
                     inputMode="numeric"
                     maxLength="50"
                     required
-                    className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                   />
+                </div>
+              </label>
+
+
+              <label className="sm:col-span-2">
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">
+                  Imagen del producto
+                </span>
+                <span className="mb-2 block text-xs text-slate-400">
+                  JPG, PNG o WEBP. Máximo recomendado: 5 MB.
+                </span>
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center">
+                  {archivoImagenProducto ? (
+                    <div className="flex items-center justify-center gap-4">
+                      <img
+                        src={URL.createObjectURL(archivoImagenProducto)}
+                        alt="Vista previa"
+                        className="h-20 w-20 rounded-xl object-cover"
+                      />
+                      <div className="text-left">
+                        <p className="max-w-xs truncate text-sm font-black text-slate-700">
+                          {archivoImagenProducto.name}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setArchivoImagenProducto(null)}
+                          className="mt-2 text-xs font-black text-red-600"
+                        >
+                          Quitar imagen
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer">
+                      <PackagePlus className="mx-auto h-8 w-8 text-blue-500" />
+                      <span className="mt-2 block font-black text-slate-800">
+                        Seleccionar imagen
+                      </span>
+                      <span className="mt-1 block text-sm text-slate-500">
+                        Haz clic para elegir una foto del producto.
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={(evento) =>
+                          setArchivoImagenProducto(evento.target.files?.[0] ?? null)
+                        }
+                      />
+                    </label>
+                  )}
                 </div>
               </label>
 
@@ -1316,7 +1675,7 @@ function Compras() {
                   min="0"
                   step="0.01"
                   required
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 />
               </label>
 
@@ -1330,7 +1689,7 @@ function Compras() {
                   value={nuevoProducto.categoria}
                   onChange={cambiarNuevoProducto}
                   required
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 outline-none focus:border-emerald-500"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 outline-none focus:border-blue-500"
                 >
                   <option value="">
                     Selecciona una categoría
@@ -1351,7 +1710,7 @@ function Compras() {
                   onClick={() =>
                     setMostrarNuevaCategoria(true)
                   }
-                  className="mt-2 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-700 hover:text-emerald-800"
+                  className="mt-2 inline-flex items-center gap-1.5 text-sm font-bold text-blue-700 hover:text-blue-800"
                 >
                   <Plus className="h-4 w-4" />
                   Nueva categoría
@@ -1371,14 +1730,14 @@ function Compras() {
                   min="0"
                   step="1"
                   required
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 />
               </label>
 
               <div className="sm:col-span-2">
                 <div className="my-1 flex items-center gap-3">
                   <div className="h-px flex-1 bg-slate-200" />
-                  <span className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">
+                  <span className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">
                     Datos de esta compra
                   </span>
                   <div className="h-px flex-1 bg-slate-200" />
@@ -1399,7 +1758,7 @@ function Compras() {
                   step="1"
                   placeholder="Ej. 27"
                   required
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 />
               </label>
 
@@ -1417,7 +1776,7 @@ function Compras() {
                   step="0.01"
                   placeholder="Ej. 27.00"
                   required
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 />
               </label>
 
@@ -1434,7 +1793,7 @@ function Compras() {
                   min={new Date()
                     .toISOString()
                     .slice(0, 10)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 />
 
                 <p className="mt-1 text-xs text-slate-400">
@@ -1442,12 +1801,12 @@ function Compras() {
                 </p>
               </label>
 
-              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 sm:col-span-2">
-                <p className="font-bold text-emerald-900">
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:col-span-2">
+                <p className="font-bold text-blue-900">
                   Se agregará listo al resumen
                 </p>
 
-                <p className="mt-1 text-sm leading-6 text-emerald-700">
+                <p className="mt-1 text-sm leading-6 text-blue-700">
                   Al guardar, el producto aparecerá con cantidad, costo y caducidad ya capturados.
                 </p>
               </div>
@@ -1472,7 +1831,7 @@ function Compras() {
                   guardandoProducto ||
                   guardandoCategoria
                 }
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-black text-white hover:bg-emerald-700 disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-black text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {guardandoProducto ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -1512,7 +1871,7 @@ function Compras() {
                 )
               }
               placeholder="Nombre de la categoría"
-              className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+              className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
               required
             />
 
@@ -1533,7 +1892,7 @@ function Compras() {
               <button
                 type="submit"
                 disabled={guardandoCategoria}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 font-bold text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {guardandoCategoria && (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1584,7 +1943,7 @@ function Compras() {
                     }))
                   }
                   required
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 />
               </label>
 
@@ -1600,7 +1959,7 @@ function Compras() {
                       telefono: evento.target.value,
                     }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-blue-500"
                 />
               </label>
 
@@ -1617,7 +1976,7 @@ function Compras() {
                       correo: evento.target.value,
                     }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-blue-500"
                 />
               </label>
 
@@ -1633,7 +1992,7 @@ function Compras() {
                       direccion: evento.target.value,
                     }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-blue-500"
                 />
               </label>
 
@@ -1650,7 +2009,7 @@ function Compras() {
                       notas: evento.target.value,
                     }))
                   }
-                  className="w-full resize-none rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500"
+                  className="w-full resize-none rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-blue-500"
                 />
               </label>
             </div>
@@ -1713,6 +2072,198 @@ function Compras() {
           </div>
         </div>
       )}
+      {modalCodigo && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-100 p-5">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-600">
+                  Códigos de barras
+                </p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">
+                  {productoAsociacionId
+                    ? "Asociar otro código"
+                    : "Código no registrado"}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Vincula el código a un producto existente o crea uno nuevo.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={cerrarModalCodigo}
+                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={guardarAsociacionCodigo} className="space-y-5 p-5">
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">
+                  Código de barras
+                </span>
+                <div className="relative mt-2">
+                  <Barcode className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={codigoPendiente}
+                    onChange={(evento) =>
+                      setCodigoPendiente(evento.target.value)
+                    }
+                    autoFocus={!codigoPendiente}
+                    className="h-12 w-full rounded-xl border border-slate-200 !pl-12 pr-4 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    placeholder="Escanea o escribe el código"
+                  />
+                </div>
+              </label>
+
+              {!productoAsociacionId && (
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">
+                    Buscar producto existente
+                  </span>
+                  <div className="relative mt-2">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={busquedaAsociacion}
+                      onChange={(evento) =>
+                        setBusquedaAsociacion(evento.target.value)
+                      }
+                      className="h-12 w-full rounded-xl border border-slate-200 !pl-12 pr-4 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                      placeholder="Ej. Coca-Cola 600 ml"
+                    />
+                  </div>
+                </label>
+              )}
+
+              <div className="max-h-72 space-y-2 overflow-y-auto">
+                {(productoAsociacionId
+                  ? productos.filter((item) => item.id === productoAsociacionId)
+                  : productosAsociacion
+                ).map((producto) => (
+                  <label
+                    key={producto.id}
+                    className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-3 transition ${
+                      productoAsociacionId === producto.id
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-slate-200 hover:border-blue-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="producto-asociacion"
+                      checked={productoAsociacionId === producto.id}
+                      onChange={() =>
+                        setProductoAsociacionId(producto.id)
+                      }
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-black text-slate-900">
+                        {producto.nombre}
+                      </p>
+                      <p className="truncate text-xs text-slate-500">
+                        {codigosProducto(producto).join(" · ") || "Sin código"}
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-slate-500">
+                      Stock {Number(producto.stock) || 0}
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                <div className="flex gap-2">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+                  <p>
+                    Asocia el código solo si corresponde exactamente al mismo producto, presentación y tamaño.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+                <button
+                  type="button"
+                  onClick={crearProductoConCodigoPendiente}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 px-4 py-3 font-black text-blue-700 hover:bg-blue-50"
+                >
+                  <PackagePlus className="h-5 w-5" />
+                  Crear producto nuevo
+                </button>
+
+                <div className="flex flex-col-reverse gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={cerrarModalCodigo}
+                    className="rounded-xl border border-slate-200 px-4 py-3 font-bold text-slate-600 hover:bg-slate-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={
+                      guardandoCodigo ||
+                      !codigoPendiente.trim() ||
+                      !productoAsociacionId
+                    }
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-black text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {guardandoCodigo ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Link2 className="h-5 w-5" />
+                    )}
+                    Asociar código
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {productoEliminar && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+              <Trash2 className="h-7 w-7" />
+            </div>
+            <h2 className="mt-5 text-2xl font-black text-slate-950">
+              ¿Quitar producto?
+            </h2>
+            <p className="mt-2 text-slate-500">
+              <strong className="text-slate-800">
+                {productoEliminar.nombre}
+              </strong>{" "}
+              dejará de aparecer en el catálogo y en las búsquedas. Las compras, ventas y lotes anteriores se conservarán.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setProductoEliminar(null)}
+                disabled={eliminandoProducto}
+                className="rounded-xl border border-slate-200 px-4 py-3 font-bold text-slate-600 hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={eliminarProductoCatalogo}
+                disabled={eliminandoProducto}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 font-black text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {eliminandoProducto ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-5 w-5" />
+                )}
+                Quitar del catálogo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </section>
   );
 }

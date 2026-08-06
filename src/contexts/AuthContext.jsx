@@ -16,6 +16,7 @@ import {
   establecerTiendaActiva,
   supabase,
 } from "../services/supabase.js";
+import { cambiarTiendaActiva as cambiarTiendaServicio } from "../services/tiendasService.js";
 
 const AuthContext = createContext(null);
 
@@ -155,6 +156,19 @@ export function AuthProvider({ children }) {
     }
   }
 
+
+  async function cambiarTienda(tiendaId) {
+    setCargando(true);
+    try {
+      await cambiarTiendaServicio(tiendaId);
+      const contexto = await cargarPerfil(sesion.user);
+      window.location.assign("/");
+      return contexto;
+    } finally {
+      setCargando(false);
+    }
+  }
+
   function tienePermiso(codigo) {
     if (!perfil) return false;
     if (perfil.es_superadmin) return true;
@@ -180,6 +194,7 @@ export function AuthProvider({ children }) {
           ? cargarPerfil(sesion.user)
           : Promise.resolve(null),
       tienePermiso,
+      cambiarTienda,
     }),
     [
       sesion,

@@ -234,6 +234,16 @@ export async function crearRespaldoJSON() {
     .update({ ultima_exportacion: new Date().toISOString() })
     .eq("tienda_id", id);
 
+  await supabase.from("historial_respaldos").insert({
+    tienda_id: id,
+    tipo: "exportacion",
+    version: respaldo.version,
+    resumen: {
+      tablas: Object.keys(resultado),
+      generado_en: respaldo.generado_en,
+    },
+  });
+
   return respaldo;
 }
 

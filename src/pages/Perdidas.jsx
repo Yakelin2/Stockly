@@ -95,6 +95,17 @@ function fechaParaInput(fecha) {
   return `${anio}-${mes}-${dia}`;
 }
 
+
+function codigosProducto(producto) {
+  return Array.from(
+    new Set(
+      [producto.codigo, ...(producto.codigos ?? [])]
+        .map((codigo) => String(codigo ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+}
+
 function Perdidas() {
   const [searchParams, setSearchParams] = useSearchParams();
   const loteDesdeDashboard = searchParams.get("lote");
@@ -289,7 +300,7 @@ function Perdidas() {
 
     return productos
       .filter((producto) =>
-        `${producto.nombre} ${producto.codigo} ${producto.categoria}`
+        `${producto.nombre} ${codigosProducto(producto).join(" ")} ${producto.categoria}`
           .toLowerCase()
           .includes(texto)
       )

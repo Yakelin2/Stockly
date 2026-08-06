@@ -10,6 +10,7 @@ import MainLayout from "./layouts/MainLayout";
 import Compras from "./pages/Compras";
 import Configuracion from "./pages/Configuracion";
 import Dashboard from "./pages/Dashboard";
+import Empresas from "./pages/Empresas.jsx";
 import Inicio from "./pages/Inicio.jsx";
 import Login from "./pages/Login.jsx";
 import Perdidas from "./pages/Perdidas";
@@ -116,6 +117,15 @@ function App() {
               element={
                 <Ruta permiso="reportes.ver">
                   <Reportes />
+                </Ruta>
+              }
+            />
+
+            <Route
+              path="/empresas"
+              element={
+                <Ruta permiso="empresas.ver">
+                  <Empresas />
                 </Ruta>
               }
             />

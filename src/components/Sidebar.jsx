@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Building2,
   LayoutDashboard,
   Package,
   Settings,
@@ -19,6 +20,7 @@ const menuItems = [
   { name: "Compras", path: "/compras", icon: Truck, permiso: "compras.ver" },
   { name: "Pérdidas", path: "/perdidas", icon: TrendingDown, permiso: "perdidas.ver" },
   { name: "Reportes", path: "/reportes", icon: BarChart3, permiso: "reportes.ver" },
+  { name: "Empresas", path: "/empresas", icon: Building2, permiso: "empresas.ver" },
   { name: "Configuración", path: "/configuracion", icon: Settings, permiso: "configuracion.ver" },
 ];
 

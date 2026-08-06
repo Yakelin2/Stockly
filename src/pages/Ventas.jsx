@@ -16,6 +16,17 @@ import EscanerCamara from "../components/productos/EscanerCamara";
 import { obtenerProductos } from "../services/productosService";
 import { registrarVenta } from "../services/ventasService.js";
 
+
+function codigosProducto(producto) {
+  return Array.from(
+    new Set(
+      [producto.codigo, ...(producto.codigos ?? [])]
+        .map((codigo) => String(codigo ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+}
+
 function Ventas() {
   const [productos, setProductos] = useState([]);
   const [busqueda, setBusqueda] = useState("");
@@ -49,8 +60,7 @@ function Ventas() {
 
     const productoEncontrado = productos.find(
       (producto) =>
-        String(producto.codigo).trim() ===
-        codigoLimpio
+        codigosProducto(producto).includes(codigoLimpio)
     );
 
     if (!productoEncontrado) {
@@ -131,7 +141,7 @@ function Ventas() {
 
     return productos
       .filter((producto) =>
-        `${producto.nombre} ${producto.codigo} ${producto.categoria}`
+        `${producto.nombre} ${codigosProducto(producto).join(" ")} ${producto.categoria}`
           .toLowerCase()
           .includes(texto)
       )
@@ -308,8 +318,7 @@ function Ventas() {
 
     const productoEncontrado = productos.find(
       (producto) =>
-        String(producto.codigo).trim() ===
-        codigoLimpio
+        codigosProducto(producto).includes(codigoLimpio)
     );
 
     if (!productoEncontrado) {
@@ -338,8 +347,7 @@ function Ventas() {
 
     const productoEncontrado = productos.find(
       (producto) =>
-        String(producto.codigo).trim() ===
-        codigoLimpio
+        codigosProducto(producto).includes(codigoLimpio)
     );
 
     if (!productoEncontrado) {

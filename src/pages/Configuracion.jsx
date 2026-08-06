@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../contexts/AuthContext.jsx";
+import RestaurarRespaldo from "../components/respaldos/RestaurarRespaldo.jsx";
 import { actualizarContrasena } from "../services/authService.js";
 import {
   cambiarEstadoUsuario,
@@ -396,6 +397,7 @@ function Configuracion() {
             <Interruptor label="Respaldo automático" descripcion="Guarda la preferencia para automatizarlo al desplegar tareas programadas." checked={p.respaldo_automatico} onChange={v=>preferencia("respaldo_automatico",v)} />
             {p.respaldo_automatico && <Select label="Frecuencia" value={p.frecuencia_respaldo} onChange={v=>preferencia("frecuencia_respaldo",v)} opciones={[["diario","Diario"],["semanal","Semanal"],["mensual","Mensual"]]} />}
             <p className="text-sm text-slate-500">Última exportación: {p.ultima_exportacion ? new Date(p.ultima_exportacion).toLocaleString("es-MX") : "Aún no se ha creado una"}</p>
+            <RestaurarRespaldo />
             <BotonGuardar guardando={guardando} onClick={guardarConfig}/>
           </div>}
 

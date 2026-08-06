@@ -105,3 +105,29 @@ img {
 }
 .boton-primario:hover { background: #1d4ed8; }
 .boton-primario:disabled { opacity: 0.55; cursor: not-allowed; }
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  #ticket-stockly,
+  #ticket-stockly * {
+    visibility: visible !important;
+  }
+
+  #ticket-stockly {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  @page {
+    size: 80mm auto;
+    margin: 3mm;
+  }
+}

@@ -13,6 +13,10 @@ function transformarProducto(producto) {
     stock: Number(producto.stock),
     minimo: Number(producto.stock_minimo),
     imagen: producto.imagen ?? "",
+    activo: producto.activo !== false,
+    codigos: (producto.codigos_barras_productos ?? [])
+      .map((item) => item.codigo_barras)
+      .filter(Boolean),
   };
 }
 
@@ -152,9 +156,15 @@ export async function obtenerProductos() {
       precio_venta,
       stock,
       stock_minimo,
-      imagen
+      imagen,
+      activo,
+      codigos_barras_productos (
+        codigo_barras,
+        principal
+      )
     `)
     .eq("tienda_id", obtenerTiendaActiva())
+    .eq("activo", true)
     .order("creado_en", { ascending: false });
 
   if (error) {
@@ -336,28 +346,17 @@ export async function actualizarProducto(
 
 export async function eliminarProductoPorId(
   id,
-  imagenProducto = ""
+  _imagenProducto = ""
 ) {
-  const { error } = await supabase
-    .from("productos")
-    .delete()
-    .eq("id", id)
-    .eq("tienda_id", obtenerTiendaActiva());
+  const { error } = await supabase.rpc(
+    "desactivar_producto_seguro",
+    {
+      p_tienda_id: obtenerTiendaActiva(),
+      p_producto_id: id,
+    }
+  );
 
   if (error) {
     throw new Error(error.message);
-  }
-
-  if (imagenProducto) {
-    try {
-      await eliminarImagenPorUrl(
-        imagenProducto
-      );
-    } catch (errorAlEliminarImagen) {
-      console.error(
-        "El producto se eliminó, pero no se pudo borrar su imagen:",
-        errorAlEliminarImagen
-      );
-    }
   }
 }

@@ -16,12 +16,91 @@ export async function obtenerProductosCompra() {
 
   const { data, error } = await supabase
     .from("productos")
-    .select("*")
+    .select(`
+      *,
+      codigos_barras_productos (
+        codigo_barras,
+        principal
+      )
+    `)
     .eq("tienda_id", obtenerTiendaActiva())
+    .eq("activo", true)
     .order("nombre", { ascending: true });
 
   if (error) throw error;
-  return data ?? [];
+
+  return (data ?? []).map((producto) => ({
+    ...producto,
+    codigos_barras: (producto.codigos_barras_productos ?? [])
+      .map((item) => item.codigo_barras)
+      .filter(Boolean),
+  }));
+}
+
+export async function buscarProductoPorCodigo(codigo) {
+  validarTienda();
+
+  const codigoLimpio = String(codigo ?? "").trim();
+
+  if (!codigoLimpio) return null;
+
+  const { data, error } = await supabase.rpc(
+    "buscar_producto_por_codigo",
+    {
+      p_tienda_id: obtenerTiendaActiva(),
+      p_codigo: codigoLimpio,
+    }
+  );
+
+  if (error) throw error;
+  return data ?? null;
+}
+
+export async function asociarCodigoProducto({
+  productoId,
+  codigo,
+}) {
+  validarTienda();
+
+  if (!productoId) {
+    throw new Error("Selecciona un producto.");
+  }
+
+  const codigoLimpio = String(codigo ?? "").trim();
+
+  if (!codigoLimpio) {
+    throw new Error("Escribe o escanea el código de barras.");
+  }
+
+  const { data, error } = await supabase.rpc(
+    "asociar_codigo_producto",
+    {
+      p_tienda_id: obtenerTiendaActiva(),
+      p_producto_id: productoId,
+      p_codigo: codigoLimpio,
+    }
+  );
+
+  if (error) throw error;
+  return data;
+}
+
+export async function desactivarProductoCompra(productoId) {
+  validarTienda();
+
+  if (!productoId) {
+    throw new Error("El producto es obligatorio.");
+  }
+
+  const { error } = await supabase.rpc(
+    "desactivar_producto_seguro",
+    {
+      p_tienda_id: obtenerTiendaActiva(),
+      p_producto_id: productoId,
+    }
+  );
+
+  if (error) throw error;
 }
 
 export async function obtenerProveedores() {
