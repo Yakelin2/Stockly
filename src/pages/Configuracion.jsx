@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../contexts/AuthContext.jsx";
+import ImagenWeb from "../components/ImagenWeb.jsx";
 import RestaurarRespaldo from "../components/respaldos/RestaurarRespaldo.jsx";
 import { actualizarContrasena } from "../services/authService.js";
 import {
@@ -381,6 +382,16 @@ function Configuracion() {
                 </div>
                 <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><Image size={17}/>Seleccionar logo<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={e=>setArchivoLogo(e.target.files?.[0]??null)}/></label>
                 <p className="mt-2 text-xs text-slate-400">PNG, JPG, WEBP o SVG · Máximo 2 MB</p>
+                <div className="mt-4 text-left">
+                  <ImagenWeb
+                    key={archivoLogo ? archivoLogo.name : p.logo_url}
+                    disabled={guardando}
+                    onSeleccionar={(url) => {
+                      setArchivoLogo(null);
+                      preferencia("logo_url", url);
+                    }}
+                  />
+                </div>
               </div>
               <div className="space-y-4">
                 <Select label="Tema" value={p.tema} onChange={v=>preferencia("tema",v)} opciones={[["claro","Claro"],["oscuro","Oscuro"],["sistema","Usar configuración del dispositivo"]]} />

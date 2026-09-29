@@ -495,6 +495,7 @@ return (
             imagenActual={formulario.imagen}
             archivoImagen={archivoImagen}
             onArchivoChange={setArchivoImagen}
+            onImagenChange={(value) => onChange({ target: { name: "imagen", value } })}
             disabled={guardando}
           />
 
