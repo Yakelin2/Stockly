@@ -2,7 +2,7 @@ import { Loader2, Trash2 } from "lucide-react";
 function ModalEliminarProducto({ producto, eliminando, onConfirmar, onCerrar }) {
   if (!producto) return null;
   return (
-    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+    <div className="stockly-modal fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600"><Trash2 className="h-7 w-7" /></div>
         <h2 className="mt-5 text-2xl font-black text-slate-950">¿Quitar producto?</h2>

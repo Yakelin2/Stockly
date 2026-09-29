@@ -10,7 +10,7 @@ function ModalVaciarCarrito({
   if (!abierto) return null;
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm">
+    <div className="stockly-modal fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm">
       <section
         role="dialog"
         aria-modal="true"

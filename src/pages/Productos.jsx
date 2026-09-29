@@ -11,6 +11,7 @@ import FormularioProducto from "../components/productos/FormularioProducto";
 import EscanerCamara from "../components/productos/EscanerCamara";
 import TablaProductos from "../components/productos/TablaProductos";
 import TarjetaResumen from "../components/productos/TarjetaResumen";
+import ModalEliminarProducto from "../components/productos/ModalEliminarProducto";
 
 import {
   actualizarProducto,
@@ -61,6 +62,8 @@ function Productos() {
     useState(null);
 
   const [error, setError] = useState("");
+  const [productoPendiente, setProductoPendiente] = useState(null);
+  const [errorEliminacion, setErrorEliminacion] = useState("");
 
   const [mostrarEscaner, setMostrarEscaner] =
     useState(false);
@@ -332,22 +335,29 @@ function detectarCodigoDesdeCamara(codigo) {
     }
   }
 
-  async function eliminarProducto(id) {
-    const confirmar = window.confirm(
-      "¿Seguro que deseas eliminar este producto?"
-    );
-
-    if (!confirmar) {
-      return;
-    }
-
-    const productoAEliminar = productos.find(
+  function abrirConfirmacionEliminar(id) {
+    if (eliminandoId !== null) return;
+    setErrorEliminacion("");
+    setProductoPendiente(productos.find(
       (producto) => producto.id === id
-    );
+    ) ?? null);
+  }
+
+  function cerrarConfirmacionEliminar() {
+    if (eliminandoId !== null) return;
+    setProductoPendiente(null);
+    setErrorEliminacion("");
+  }
+
+  async function eliminarProducto() {
+    if (!productoPendiente || eliminandoId !== null) return;
+    const productoAEliminar = productoPendiente;
+    const id = productoAEliminar.id;
 
     try {
       setEliminandoId(id);
       setError("");
+      setErrorEliminacion("");
 
       await eliminarProductoPorId(
         id,
@@ -359,13 +369,14 @@ function detectarCodigoDesdeCamara(codigo) {
           (producto) => producto.id !== id
         )
       );
+      setProductoPendiente(null);
     } catch (errorAlEliminar) {
       console.error(
         "Error al eliminar producto:",
         errorAlEliminar
       );
 
-      setError(
+      setErrorEliminacion(
         `No se pudo eliminar el producto: ${errorAlEliminar.message}`
       );
     } finally {
@@ -462,8 +473,18 @@ function detectarCodigoDesdeCamara(codigo) {
         eliminandoId={eliminandoId}
         onBusquedaChange={setBusqueda}
         onEditar={abrirFormularioEdicion}
-        onEliminar={eliminarProducto}
+        onEliminar={abrirConfirmacionEliminar}
       />
+
+      {productoPendiente && (
+        <ModalEliminarProducto
+          producto={productoPendiente}
+          eliminando={eliminandoId !== null}
+          error={errorEliminacion}
+          onCancelar={cerrarConfirmacionEliminar}
+          onConfirmar={eliminarProducto}
+        />
+      )}
 
       <FormularioProducto
         mostrar={mostrarFormulario}
@@ -477,7 +498,7 @@ function detectarCodigoDesdeCamara(codigo) {
       />
 
       {mostrarEscaner && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4">
+        <div className="stockly-modal fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4">
           <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 p-5">
               <div>

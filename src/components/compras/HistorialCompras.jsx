@@ -461,7 +461,7 @@ function HistorialCompras({ onNuevaCompra }) {
       </article>
 
       {detalle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+        <div className="stockly-modal fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
           <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
             {cargandoDetalle || detalle.cargando ? (
               <div className="flex min-h-80 items-center justify-center">

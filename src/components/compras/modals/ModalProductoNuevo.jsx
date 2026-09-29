@@ -24,7 +24,7 @@ function ModalProductoNuevo({
 
   return (
     <>
-      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+      <div className="stockly-modal fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
         <form
           onSubmit={onGuardarProducto}
           className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
@@ -135,7 +135,7 @@ function ModalProductoNuevo({
       </div>
 
       {mostrarNuevaCategoria && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+        <div className="stockly-modal fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
           <form onSubmit={onGuardarCategoria} className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
             <h3 className="text-xl font-black text-slate-950">Nueva categoría</h3>
             <p className="mt-1 text-sm text-slate-500">Quedará seleccionada en el producto.</p>

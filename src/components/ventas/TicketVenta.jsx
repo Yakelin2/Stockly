@@ -14,7 +14,7 @@ export default function TicketVenta({ abierto, datos, onCerrar }) {
     window.print();
   }
 
-  return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+  return <div className="stockly-modal fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
     <div className="max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
       <div className="no-print flex items-center justify-between border-b p-4">
         <h2 className="text-xl font-black">Ticket de venta</h2>
