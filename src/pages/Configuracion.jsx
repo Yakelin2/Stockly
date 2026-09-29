@@ -29,6 +29,7 @@ import {
 
 import { useAuth } from "../contexts/AuthContext.jsx";
 import ImagenWeb from "../components/ImagenWeb.jsx";
+import { guardarTema, previsualizarTema, restaurarTema } from "../utils/tema.js";
 import RestaurarRespaldo from "../components/respaldos/RestaurarRespaldo.jsx";
 import { actualizarContrasena } from "../services/authService.js";
 import {
@@ -139,6 +140,7 @@ function Configuracion() {
         tienda: configuracion.tienda,
         preferencias: { ...DEFAULTS, ...(configuracion.preferencias ?? {}) },
       });
+      guardarTema(configuracion.preferencias?.tema ?? "claro");
       setUsuarios(usuariosData);
       setRoles(rolesData);
       setPermisos(permisosData);
@@ -151,6 +153,7 @@ function Configuracion() {
   }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => () => restaurarTema(), []);
 
   function avisar(texto) {
     setMensaje(texto);
@@ -159,6 +162,7 @@ function Configuracion() {
   }
 
   function preferencia(campo, valor) {
+    if (campo === "tema") previsualizarTema(valor);
     setDatos((actual) => ({
       ...actual,
       preferencias: { ...actual.preferencias, [campo]: valor },
@@ -189,6 +193,7 @@ function Configuracion() {
         );
       }
       const guardadas = await guardarPreferencias(preferencias);
+      guardarTema(guardadas.tema ?? preferencias.tema);
       setDatos((a) => ({ ...a, preferencias: { ...DEFAULTS, ...guardadas } }));
       setArchivoLogo(null);
       await recargarPerfil();
@@ -395,6 +400,7 @@ function Configuracion() {
               </div>
               <div className="space-y-4">
                 <Select label="Tema" value={p.tema} onChange={v=>preferencia("tema",v)} opciones={[["claro","Claro"],["oscuro","Oscuro"],["sistema","Usar configuración del dispositivo"]]} />
+                <p className="text-xs text-slate-500">El tema se previsualiza al seleccionarlo. Pulsa Guardar cambios para conservarlo en esta tienda.</p>
                 <div className="grid gap-4 sm:grid-cols-2"><Color label="Color principal" value={p.color_primario} onChange={v=>preferencia("color_primario",v)}/><Color label="Color secundario" value={p.color_secundario} onChange={v=>preferencia("color_secundario",v)}/></div>
                 <div className="rounded-2xl border border-slate-200 p-4"><p className="text-xs font-bold uppercase text-slate-400">Vista previa</p><div className="mt-3 flex items-center gap-3"><div className="h-12 w-12 rounded-2xl" style={{background:p.color_primario}}/><div><p className="font-black text-slate-900">{datos.tienda.nombre}</p><p className="text-sm" style={{color:p.color_secundario}}>Control inteligente</p></div></div></div>
               </div>

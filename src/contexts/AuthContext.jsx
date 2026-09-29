@@ -17,6 +17,7 @@ import {
   supabase,
 } from "../services/supabase.js";
 import { cambiarTiendaActiva as cambiarTiendaServicio } from "../services/tiendasService.js";
+import { cargarTemaTienda } from "../utils/tema.js";
 
 const AuthContext = createContext(null);
 
@@ -25,6 +26,16 @@ export function AuthProvider({ children }) {
   const [perfil, setPerfil] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => cargarTemaTienda(perfil?.tienda_id, async (tiendaId) => {
+    const { data, error: errorTema } = await supabase
+      .from("configuracion_tienda")
+      .select("tema")
+      .eq("tienda_id", tiendaId)
+      .maybeSingle();
+    if (errorTema) throw errorTema;
+    return data?.tema ?? "claro";
+  }), [perfil?.tienda_id]);
 
   const cargarPerfil = useCallback(async (usuario) => {
     if (!usuario) {
