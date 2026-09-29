@@ -1,6 +1,8 @@
 // src/services/dashboardService.js
 
 import { supabase, obtenerTiendaActiva } from "./supabase.js";
+import { obtenerProductos } from "./productosService.js";
+import { resumirInventario } from "../utils/resumenInventario.js";
 
 const DASHBOARD_VACIO = {
   ventas_dia: 0,
@@ -43,6 +45,7 @@ export async function obtenerDashboard() {
   const [
     { data: dashboard, error: dashboardError },
     { data: caducidades, error: caducidadesError },
+    productos,
   ] = await Promise.all([
     supabase.rpc("obtener_dashboard_stockly", {
       p_tienda_id: tiendaId,
@@ -52,6 +55,7 @@ export async function obtenerDashboard() {
       p_dias_alerta: diasAlerta,
       p_limite: 20,
     }),
+    obtenerProductos(),
   ]);
 
   if (dashboardError) throw dashboardError;
@@ -61,5 +65,8 @@ export async function obtenerDashboard() {
     ...DASHBOARD_VACIO,
     ...(dashboard ?? {}),
     ...(caducidades ?? {}),
+    // El resumen histórico puede incluir productos desactivados. Las métricas
+    // del inventario actual usan el mismo catálogo activo que Productos.
+    ...resumirInventario(productos),
   };
 }
