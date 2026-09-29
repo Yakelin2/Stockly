@@ -341,7 +341,7 @@ if (!mostrar) {
 
 return (
   <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+    <div className="stockly-modal fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
       <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 p-5">
           <div>
@@ -495,6 +495,7 @@ return (
             imagenActual={formulario.imagen}
             archivoImagen={archivoImagen}
             onArchivoChange={setArchivoImagen}
+            onImagenChange={(value) => onChange({ target: { name: "imagen", value } })}
             disabled={guardando}
           />
 
@@ -621,7 +622,7 @@ return (
     </div>
 
     {mostrarNuevaCategoria && (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+      <div className="stockly-modal fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
         <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
           <h3 className="text-lg font-bold text-slate-900">
             Nueva categoría

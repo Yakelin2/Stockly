@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import EscanerCamara from "../components/productos/EscanerCamara";
+import ModalConfirmarPerdida from "../components/perdidas/ModalConfirmarPerdida";
 import { obtenerProductos } from "../services/productosService.js";
 import {
   cancelarPerdida,
@@ -155,6 +156,8 @@ function Perdidas() {
     useState(null);
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
+  const [confirmacion, setConfirmacion] = useState(null);
+  const [errorConfirmacion, setErrorConfirmacion] = useState("");
 
   const cargarProductos = useCallback(async () => {
     const resultado = await obtenerProductos();
@@ -437,8 +440,9 @@ function Perdidas() {
     seleccionarProducto(producto);
   }
 
-  async function guardarPerdida(evento) {
+  function guardarPerdida(evento) {
     evento.preventDefault();
+    if (guardando || cancelandoId !== null || confirmacion) return;
     limpiarMensajes();
 
     if (!productoSeleccionado) {
@@ -468,22 +472,46 @@ function Perdidas() {
       return;
     }
 
-    const confirmar = window.confirm(
-      `¿Registrar una pérdida de ${cantidadNumero} unidad(es) de ${productoSeleccionado.nombre}?`
-    );
-
-    if (!confirmar) return;
-
-    try {
-      setGuardando(true);
-
-      await registrarPerdida({
+    setErrorConfirmacion("");
+    setConfirmacion({
+      tipo: "registro",
+      producto: productoSeleccionado.nombre,
+      cantidad: cantidadNumero,
+      motivo: motivoLegible(motivo),
+      costo: moneda(costoPerdido),
+      datos: {
         productoId: productoSeleccionado.id,
         loteId: loteSeleccionadoId || null,
         cantidad: cantidadNumero,
         motivo,
         observaciones,
-      });
+      },
+    });
+  }
+
+  function cerrarConfirmacion() {
+    if (guardando || cancelandoId !== null) return;
+    setConfirmacion(null);
+    setErrorConfirmacion("");
+  }
+
+  async function confirmarRegistro() {
+    if (guardando || !confirmacion || confirmacion.tipo !== "registro") return;
+    setErrorConfirmacion("");
+
+    try {
+      setGuardando(true);
+
+      await registrarPerdida(confirmacion.datos);
+    } catch (err) {
+      console.error(err);
+      setErrorConfirmacion(err.message || "No fue posible registrar la pérdida.");
+      setGuardando(false);
+      return;
+    }
+
+    setConfirmacion(null);
+    try {
 
       setMensaje("La pérdida se registró correctamente.");
       setProductoSeleccionado(null);
@@ -502,26 +530,45 @@ function Perdidas() {
       console.error(err);
       setError(
         err.message ||
-          "No fue posible registrar la pérdida."
+          "La pérdida se registró, pero no fue posible actualizar los datos. Recarga la página."
       );
     } finally {
       setGuardando(false);
     }
   }
 
-  async function manejarCancelacion(perdida) {
-    const confirmar = window.confirm(
-      `¿Cancelar la pérdida de ${perdida.cantidad} unidad(es) de ${perdida.producto}? El stock será devuelto.`
-    );
+  function manejarCancelacion(perdida) {
+    if (guardando || cancelandoId !== null || confirmacion) return;
+    limpiarMensajes();
+    setErrorConfirmacion("");
+    setConfirmacion({
+      tipo: "cancelacion",
+      id: perdida.id,
+      producto: perdida.producto,
+      cantidad: perdida.cantidad,
+      motivo: motivoLegible(perdida.motivo),
+      costo: moneda(perdida.total_perdida),
+    });
+  }
 
-    if (!confirmar) return;
+  async function confirmarCancelacion() {
+    if (cancelandoId !== null || !confirmacion || confirmacion.tipo !== "cancelacion") return;
+    setErrorConfirmacion("");
 
     try {
-      setCancelandoId(perdida.id);
+      setCancelandoId(confirmacion.id);
       limpiarMensajes();
 
-      await cancelarPerdida(perdida.id);
+      await cancelarPerdida(confirmacion.id);
+    } catch (err) {
+      console.error(err);
+      setErrorConfirmacion(err.message || "No fue posible cancelar la pérdida.");
+      setCancelandoId(null);
+      return;
+    }
 
+    setConfirmacion(null);
+    try {
       setMensaje(
         "La pérdida fue cancelada y el stock se devolvió."
       );
@@ -534,7 +581,7 @@ function Perdidas() {
       console.error(err);
       setError(
         err.message ||
-          "No fue posible cancelar la pérdida."
+          "La pérdida se canceló, pero no fue posible actualizar los datos. Recarga la página."
       );
     } finally {
       setCancelandoId(null);
@@ -1111,6 +1158,16 @@ function Perdidas() {
             )}
           </div>
         </div>
+      )}
+
+      {confirmacion && (
+        <ModalConfirmarPerdida
+          confirmacion={confirmacion}
+          procesando={guardando || cancelandoId !== null}
+          error={errorConfirmacion}
+          onCerrar={cerrarConfirmacion}
+          onConfirmar={confirmacion.tipo === "registro" ? confirmarRegistro : confirmarCancelacion}
+        />
       )}
 
       <EscanerCamara

@@ -2,7 +2,7 @@ import { Loader2, X } from "lucide-react";
 function ModalEscaner({ abierto, iniciando, onCerrar }) {
   if (!abierto) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+    <div className="stockly-modal fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
       <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-100 p-4">
           <div><h2 className="font-bold text-slate-900">Escanear producto</h2><p className="text-sm text-slate-500">Coloca el código dentro del recuadro.</p></div>

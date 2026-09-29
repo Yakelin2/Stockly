@@ -16,9 +16,28 @@
 }
 
 * {
-  margin: 0;
-  padding: 0;
   box-sizing: border-box;
+}
+
+/* Tailwind Preflight handles the reset inside its base layer so spacing
+   utilities can override it. Keep modal gutters consistent at every size. */
+.stockly-modal {
+  --modal-gutter: 1rem;
+  padding: var(--modal-gutter);
+}
+
+.stockly-modal > :first-child {
+  min-width: 0;
+  max-height: calc(100vh - 2 * var(--modal-gutter));
+  max-height: calc(100dvh - 2 * var(--modal-gutter));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (min-width: 640px) {
+  .stockly-modal {
+    --modal-gutter: 1.5rem;
+  }
 }
 
 html {

@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../contexts/AuthContext.jsx";
+import ImagenWeb from "../components/ImagenWeb.jsx";
+import { guardarTema, previsualizarTema, restaurarTema } from "../utils/tema.js";
 import RestaurarRespaldo from "../components/respaldos/RestaurarRespaldo.jsx";
 import { actualizarContrasena } from "../services/authService.js";
 import {
@@ -138,6 +140,7 @@ function Configuracion() {
         tienda: configuracion.tienda,
         preferencias: { ...DEFAULTS, ...(configuracion.preferencias ?? {}) },
       });
+      guardarTema(configuracion.preferencias?.tema ?? "claro");
       setUsuarios(usuariosData);
       setRoles(rolesData);
       setPermisos(permisosData);
@@ -150,6 +153,7 @@ function Configuracion() {
   }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => () => restaurarTema(), []);
 
   function avisar(texto) {
     setMensaje(texto);
@@ -158,6 +162,7 @@ function Configuracion() {
   }
 
   function preferencia(campo, valor) {
+    if (campo === "tema") previsualizarTema(valor);
     setDatos((actual) => ({
       ...actual,
       preferencias: { ...actual.preferencias, [campo]: valor },
@@ -188,6 +193,7 @@ function Configuracion() {
         );
       }
       const guardadas = await guardarPreferencias(preferencias);
+      guardarTema(guardadas.tema ?? preferencias.tema);
       setDatos((a) => ({ ...a, preferencias: { ...DEFAULTS, ...guardadas } }));
       setArchivoLogo(null);
       await recargarPerfil();
@@ -381,9 +387,20 @@ function Configuracion() {
                 </div>
                 <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><Image size={17}/>Seleccionar logo<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={e=>setArchivoLogo(e.target.files?.[0]??null)}/></label>
                 <p className="mt-2 text-xs text-slate-400">PNG, JPG, WEBP o SVG · Máximo 2 MB</p>
+                <div className="mt-4 text-left">
+                  <ImagenWeb
+                    key={archivoLogo ? archivoLogo.name : p.logo_url}
+                    disabled={guardando}
+                    onSeleccionar={(url) => {
+                      setArchivoLogo(null);
+                      preferencia("logo_url", url);
+                    }}
+                  />
+                </div>
               </div>
               <div className="space-y-4">
                 <Select label="Tema" value={p.tema} onChange={v=>preferencia("tema",v)} opciones={[["claro","Claro"],["oscuro","Oscuro"],["sistema","Usar configuración del dispositivo"]]} />
+                <p className="text-xs text-slate-500">El tema se previsualiza al seleccionarlo. Pulsa Guardar cambios para conservarlo en esta tienda.</p>
                 <div className="grid gap-4 sm:grid-cols-2"><Color label="Color principal" value={p.color_primario} onChange={v=>preferencia("color_primario",v)}/><Color label="Color secundario" value={p.color_secundario} onChange={v=>preferencia("color_secundario",v)}/></div>
                 <div className="rounded-2xl border border-slate-200 p-4"><p className="text-xs font-bold uppercase text-slate-400">Vista previa</p><div className="mt-3 flex items-center gap-3"><div className="h-12 w-12 rounded-2xl" style={{background:p.color_primario}}/><div><p className="font-black text-slate-900">{datos.tienda.nombre}</p><p className="text-sm" style={{color:p.color_secundario}}>Control inteligente</p></div></div></div>
               </div>
@@ -422,6 +439,6 @@ function Select({label,value,onChange,opciones}){return <label className="block"
 function Color({label,value,onChange}){return <label className="block"><span className="text-sm font-bold text-slate-700">{label}</span><div className="mt-2 flex items-center gap-2 rounded-xl border border-slate-300 p-2"><input type="color" value={value} onChange={e=>onChange(e.target.value)} className="h-10 w-12 cursor-pointer border-0 bg-transparent"/><input value={value} onChange={e=>onChange(e.target.value)} className="min-w-0 flex-1 outline-none"/></div></label>}
 function Interruptor({label,descripcion,checked,onChange}){return <label className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 p-4"><span><span className="block font-bold text-slate-800">{label}</span>{descripcion&&<span className="mt-1 block text-sm text-slate-500">{descripcion}</span>}</span><button type="button" onClick={()=>onChange(!checked)} className={`relative h-7 w-12 shrink-0 rounded-full transition ${checked?"bg-blue-600":"bg-slate-300"}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition ${checked?"left-6":"left-1"}`}/></button></label>}
 function BotonGuardar({guardando,texto="Guardar cambios",onClick}){return <button type={onClick?"button":"submit"} onClick={onClick} disabled={guardando} className="boton-primario"><>{guardando?<Loader2 className="h-5 w-5 animate-spin"/>:<Save className="h-5 w-5"/>}{texto}</></button>}
-function Modal({titulo,onCerrar,children,ancho="max-w-lg"}){return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"><div className={`max-h-[92vh] w-full ${ancho} overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl`}><div className="mb-5 flex items-center justify-between"><h2 className="text-2xl font-black text-slate-950">{titulo}</h2><button onClick={onCerrar} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"><X/></button></div>{children}</div></div>}
+function Modal({titulo,onCerrar,children,ancho="max-w-lg"}){return <div className="stockly-modal fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"><div className={`max-h-[92vh] w-full ${ancho} overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl`}><div className="mb-5 flex items-center justify-between"><h2 className="text-2xl font-black text-slate-950">{titulo}</h2><button onClick={onCerrar} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"><X/></button></div>{children}</div></div>}
 
 export default Configuracion;

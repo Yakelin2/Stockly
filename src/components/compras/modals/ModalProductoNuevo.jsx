@@ -1,3 +1,4 @@
+import SubirImagen from "../../productos/SubirImagen";
 import { Barcode, Loader2, PackagePlus, Plus, X } from "lucide-react";
 
 function ModalProductoNuevo({
@@ -24,7 +25,7 @@ function ModalProductoNuevo({
 
   return (
     <>
-      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+      <div className="stockly-modal fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
         <form
           onSubmit={onGuardarProducto}
           className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
@@ -61,29 +62,13 @@ function ModalProductoNuevo({
               <input type="number" name="venta" value={nuevoProducto.venta} onChange={onCambiarProducto} min="0" step="0.01" required className="w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
             </label>
 
-            <div className="sm:col-span-2">
-              <span className="mb-1.5 block text-sm font-bold text-slate-700">Imagen del producto</span>
-              <span className="mb-2 block text-xs text-slate-400">JPG, PNG o WEBP. Máximo recomendado: 5 MB.</span>
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center">
-                {archivoImagen ? (
-                  <div className="flex items-center justify-center gap-4">
-                    <img src={URL.createObjectURL(archivoImagen)} alt="Vista previa" className="h-20 w-20 rounded-xl object-cover" />
-                    <div className="min-w-0 text-left">
-                      <p className="max-w-xs truncate text-sm font-black text-slate-700">{archivoImagen.name}</p>
-                      <button type="button" onClick={() => onCambiarImagen(null)} className="mt-2 text-xs font-black text-red-600">Quitar imagen</button>
-                    </div>
-                  </div>
-                ) : (
-                  <label className="cursor-pointer">
-                    <PackagePlus className="mx-auto h-8 w-8 text-blue-500" />
-                    <span className="mt-2 block font-black text-slate-800">Seleccionar imagen</span>
-                    <span className="mt-1 block text-sm text-slate-500">Haz clic para elegir una foto del producto.</span>
-                    <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(evento) => onCambiarImagen(evento.target.files?.[0] ?? null)} />
-                  </label>
-                )}
-              </div>
-            </div>
-
+            <SubirImagen
+              imagenActual={nuevoProducto.imagen || ""}
+              archivoImagen={archivoImagen}
+              onArchivoChange={onCambiarImagen}
+              onImagenChange={(value) => onCambiarProducto({ target: { name: "imagen", value } })}
+              disabled={bloqueado}
+            />
             <div>
               <span className="mb-1.5 block text-sm font-bold text-slate-700">Categoría *</span>
               <select name="categoria" value={nuevoProducto.categoria} onChange={onCambiarProducto} required className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 outline-none focus:border-blue-500">
@@ -135,7 +120,7 @@ function ModalProductoNuevo({
       </div>
 
       {mostrarNuevaCategoria && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+        <div className="stockly-modal fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
           <form onSubmit={onGuardarCategoria} className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
             <h3 className="text-xl font-black text-slate-950">Nueva categoría</h3>
             <p className="mt-1 text-sm text-slate-500">Quedará seleccionada en el producto.</p>

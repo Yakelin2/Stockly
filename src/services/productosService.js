@@ -1,4 +1,5 @@
 import { supabase, obtenerTiendaActiva } from "./supabase";
+import { validarUrlImagen } from "../utils/imagenWeb.js";
 
 const BUCKET_PRODUCTOS = "productos";
 
@@ -197,7 +198,7 @@ export async function crearProducto(
       precio_venta: Number(formulario.venta),
       stock: Number(formulario.stock),
       stock_minimo: Number(formulario.minimo),
-      imagen: imagenSubida?.url ?? null,
+      imagen: imagenSubida?.url ?? (validarUrlImagen(formulario.imagen) || null),
     };
 
     const { data, error } = await supabase
@@ -282,7 +283,7 @@ export async function actualizarProducto(
       stock_minimo: Number(formulario.minimo),
       imagen:
         imagenSubida?.url ??
-        formulario.imagen ??
+        validarUrlImagen(formulario.imagen) ??
         null,
       actualizado_en: new Date().toISOString(),
     };

@@ -3,7 +3,7 @@ function ModalAsociarCodigo({ abierto, codigo, productoAsociacionId, busqueda, p
   if (!abierto) return null;
   const visibles = productoAsociacionId ? productos.filter((item) => item.id === productoAsociacionId) : productosAsociacion;
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+    <div className="stockly-modal fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
       <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-slate-100 p-5">
           <div><p className="text-xs font-black uppercase tracking-[0.16em] text-blue-600">Códigos de barras</p><h2 className="mt-1 text-2xl font-black text-slate-950">{productoAsociacionId ? "Asociar otro código" : "Código no registrado"}</h2><p className="mt-1 text-sm text-slate-500">Vincula el código a un producto existente o crea uno nuevo.</p></div>

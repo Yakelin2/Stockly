@@ -1,5 +1,6 @@
 import { ImagePlus, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import ImagenWeb from "../ImagenWeb";
 
 const TAMANO_MAXIMO = 5 * 1024 * 1024;
 
@@ -13,6 +14,7 @@ function SubirImagen({
   imagenActual = "",
   archivoImagen,
   onArchivoChange,
+  onImagenChange,
   disabled = false,
 }) {
   const inputRef = useRef(null);
@@ -84,6 +86,7 @@ function SubirImagen({
       return;
     }
 
+    onImagenChange?.("");
     onArchivoChange(archivo);
   }
 
@@ -95,6 +98,7 @@ function SubirImagen({
     setErrorImagen("");
     setVistaPrevia("");
     onArchivoChange(null);
+    onImagenChange?.("");
 
     if (inputRef.current) {
       inputRef.current.value = "";
@@ -128,6 +132,7 @@ function SubirImagen({
           <div className="h-36 w-full overflow-hidden rounded-xl border border-slate-200 bg-white sm:h-32 sm:w-32">
             <img
               src={vistaPrevia}
+              referrerPolicy="no-referrer"
               alt="Vista previa del producto"
               className="h-full w-full object-cover"
             />
@@ -189,6 +194,19 @@ function SubirImagen({
             </p>
           </div>
         </button>
+      )}
+
+      {onImagenChange && (
+        <ImagenWeb
+          key={archivoImagen ? archivoImagen.name : imagenActual}
+          disabled={disabled}
+          onSeleccionar={(url) => {
+            setErrorImagen("");
+            onArchivoChange(null);
+            onImagenChange(url);
+            if (inputRef.current) inputRef.current.value = "";
+          }}
+        />
       )}
 
       {errorImagen && (

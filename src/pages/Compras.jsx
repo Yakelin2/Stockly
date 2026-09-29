@@ -37,6 +37,7 @@ const PROVEEDOR_INICIAL = {
 };
 
 const PRODUCTO_NUEVO_INICIAL = {
+  imagen: "",
   nombre: "",
   codigo: "",
   categoria: "",
@@ -638,7 +639,7 @@ const quitarProducto = (lineaId) => {
           venta: String(precioVenta),
           stock: "0",
           minimo: String(stockMinimo),
-          imagen: "",
+          imagen: nuevoProducto.imagen,
         },
         archivoImagenProducto
       );
